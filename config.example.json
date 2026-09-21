@@ -1,0 +1,9 @@
+{
+  "LandscapeRoots": [],
+  "PortraitRoots": [],
+  "PortraitMinWidth": 1440,
+  "PortraitMinHeight": 2560,
+  "IntervalMinutes": 1,
+  "AutoStart": true,
+  "OnlyPortrait": true
+}
