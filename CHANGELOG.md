@@ -1,5 +1,12 @@
 ﻿# 更新记录
 
+## [1.2.0] - 2026-09-23
+
+- 设置窗口支持简体中文 / English 即时切换，自动保存语言，保留未保存的配置编辑。
+- 兼容无语言字段的旧配置；语言变化不重建图片索引、不触发壁纸切换。
+- 集中维护界面翻译，新增英文使用说明和双语 TODO 计划。
+- Add live Chinese / English switching, persisted language preferences, an English guide and a bilingual roadmap.
+
 ## [1.1.0] - 2026-09-23
 
 - 按 Windows 主显示器区分主屏和副屏；不再根据屏幕横竖方向分配图片池。

@@ -1,6 +1,12 @@
 ﻿# DualScreenWallpaper
 
+简体中文 | [English](README.en.md) | [后续计划 / TODO](TODO.md)
+
 Windows 双屏独立静态壁纸轮播：主屏和副屏分别绑定图片目录，支持递归扫描、独立过滤、子目录排除和图形设置界面。当前版本见 `VERSION`，更新内容见 `CHANGELOG.md`。
+
+## 语言切换
+
+设置窗口顶部可选择“简体中文 / English”，即时切换并自动记住语言；未保存的目录、过滤参数不会丢失，也不会触发换图或重建索引。旧配置缺少语言字段时默认使用中文。系统目录选择窗口及系统错误遵循 Windows 语言，诊断日志保留原始语言。两种语言共用同一套功能，翻译集中维护在 `Language.ps1`。
 
 ## 功能
 
@@ -79,10 +85,10 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Settings.ps1 -Smo
 ```powershell
 # 检查配置迁移、筛选、排除、索引和主副屏分组
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Settings.ps1
-# 打包当前版本到 dist/DualScreenWallpaper-1.1.0.zip
+# 打包当前版本到 dist/DualScreenWallpaper-1.2.0.zip
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1
-# 下次发布：先在 CHANGELOG.md 增加 [1.1.1] 条目，再更新版本并打包
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1 -NewVersion 1.1.1
+# 下次发布：先在 CHANGELOG.md 增加 [1.2.1] 条目，再更新版本并打包
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1 -NewVersion 1.2.1
 ```
 
 脚本要求三段式递增版本及对应更新记录，拒绝覆盖已有发布包。打包后可审查并提交代码、`VERSION` 和 `CHANGELOG.md`，再手动创建对应的 Git 标签。升级安装时保留原有 `config.json` 和 `data/`，解压覆盖程序文件后打开设置并保存应用。

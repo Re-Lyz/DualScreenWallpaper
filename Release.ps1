@@ -11,7 +11,7 @@ if($NewVersion){
 $changelog=Get-Content (Join-Path $root 'CHANGELOG.md') -Raw -Encoding UTF8
 if($changelog -notmatch ('(?m)^## \['+[regex]::Escape($version)+'\]')){throw "Add a CHANGELOG.md entry for [$version] before packaging."}
 # Explicit allowlist: never package local config, logs, image paths or wallpaper caches.
-$files=@('00-settings.cmd','01-install.cmd','02-refresh-index.cmd','03-change-now.cmd','04-stop-and-restore.cmd','05-show-monitors.cmd','Config.ps1','Desktop.cs','ImageHeader.cs','Initialize-Config.ps1','Launch-Settings.ps1','Open-Settings.vbs','Run-Wallpaper.vbs','Settings.ps1','Wallpaper.ps1','config.example.json','README.md','CHANGELOG.md','VERSION','Release.ps1','Test-Settings.ps1')
+$files=@('00-settings.cmd','01-install.cmd','02-refresh-index.cmd','03-change-now.cmd','04-stop-and-restore.cmd','05-show-monitors.cmd','Config.ps1','Language.ps1','Desktop.cs','ImageHeader.cs','Initialize-Config.ps1','Launch-Settings.ps1','Open-Settings.vbs','Run-Wallpaper.vbs','Settings.ps1','Wallpaper.ps1','config.example.json','README.md','README.en.md','TODO.md','CHANGELOG.md','VERSION','Release.ps1','Test-Settings.ps1')
 foreach($name in $files){if(!(Test-Path -LiteralPath (Join-Path $root $name) -PathType Leaf)){throw "Missing release file: $name"}}
 $output=Join-Path $root 'dist'
 New-Item -ItemType Directory -Path $output -Force | Out-Null

@@ -1,5 +1,6 @@
 ﻿{
   "SchemaVersion": 2,
+  "Language": "zh-CN",
   "Primary": {
     "Roots": [], "ExcludeFolders": [],
     "OrientationEnabled": false, "Orientation": "Landscape",

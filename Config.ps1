@@ -1,10 +1,11 @@
 ﻿# Shared configuration and image-selection rules (Windows PowerShell 5.1).
 function Convert-Settings($value) {
     if ($value.SchemaVersion -and $value.SchemaVersion -ne 2) { throw 'Unsupported configuration version.' }
+    if ($value.Language -notin 'zh-CN','en-US') { $value | Add-Member -NotePropertyName Language -NotePropertyValue 'zh-CN' -Force }
     if ($value.SchemaVersion -eq 2) { return $value }
     # Preserve the old filters; the user can review the new monitor roles in Settings.
     [pscustomobject]@{
-        SchemaVersion=2
+        SchemaVersion=2; Language=$value.Language
         Primary=[pscustomobject]@{ Roots=@($value.LandscapeRoots); ExcludeFolders=@(); OrientationEnabled=$false; Orientation='Landscape'; MinResolutionEnabled=$false; MinWidth=1920; MinHeight=1080 }
         Secondary=[pscustomobject]@{ Roots=@($value.PortraitRoots); ExcludeFolders=@(); OrientationEnabled=($value.OnlyPortrait -ne $false); Orientation='Portrait'; MinResolutionEnabled=($value.PortraitMinWidth -gt 0 -or $value.PortraitMinHeight -gt 0); MinWidth=[int]$value.PortraitMinWidth; MinHeight=[int]$value.PortraitMinHeight }
         IntervalMinutes=$value.IntervalMinutes

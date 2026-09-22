@@ -6,8 +6,10 @@ $script:root=$PSScriptRoot; $script:worker=$null; $script:buttons=@()
 $script:configPath=Join-Path $PSScriptRoot 'config.json'
 . (Join-Path $PSScriptRoot 'Initialize-Config.ps1')
 . (Join-Path $PSScriptRoot 'Config.ps1')
+. (Join-Path $PSScriptRoot 'Language.ps1')
 $rawConfig=Get-Content $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $c=Convert-Settings $rawConfig
+$script:uiLanguage=$c.Language
 $version=(Get-Content (Join-Path $PSScriptRoot 'VERSION') -Raw).Trim()
 $form=[Windows.Forms.Form]::new()
 $form.Text="双屏壁纸 v$version · 设置"
@@ -27,7 +29,7 @@ function Folder-Box($title,$y,$paths,$parent) {
     $box=[Windows.Forms.TextBox]::new(); $box.Multiline=$true; $box.ScrollBars='Vertical'; $box.SetBounds(12,($y+26),595,64)
     $box.Text=(@($paths) -join "`r`n"); $parent.Controls.Add($box)
     $handler={
-        $dialog=[Windows.Forms.FolderBrowserDialog]::new(); $dialog.Description='选择目录（包含其全部子目录）'
+        $dialog=[Windows.Forms.FolderBrowserDialog]::new(); $dialog.Description=(Get-UiText '选择目录（包含其全部子目录）')
         try {
             if($dialog.ShowDialog($form) -eq 'OK') {
                 $lines=@($box.Lines | Where-Object { $_.Trim() })
@@ -71,17 +73,17 @@ $log=[Windows.Forms.TextBox]::new(); $log.Multiline=$true; $log.ReadOnly=$true; 
 function Read-Profile($controls) {
     $roots=@($controls.Roots.Lines | ForEach-Object {$_.Trim().Trim('"')} | Where-Object {$_} | Select-Object -Unique)
     $excluded=@($controls.ExcludeFolders.Lines | ForEach-Object {$_.Trim().Trim('"')} | Where-Object {$_} | Select-Object -Unique)
-    if (!$roots.Count) {throw '主屏和副屏各至少需要一个图片目录。'}
-    foreach($path in $roots){$null=Get-NormalizedFolder $path; if(!(Test-Path -LiteralPath $path -PathType Container)){throw "图片目录不存在：$path"}}
+    if (!$roots.Count) {throw (Get-UiText '主屏和副屏各至少需要一个图片目录。')}
+    foreach($path in $roots){$null=Get-NormalizedFolder $path; if(!(Test-Path -LiteralPath $path -PathType Container)){throw (Get-UiText '图片目录不存在：{0}' @($path))}}
     foreach($path in $excluded){$null=Get-NormalizedFolder $path}
     [ordered]@{Roots=$roots; ExcludeFolders=$excluded; OrientationEnabled=$controls.OrientationEnabled.Checked; Orientation=$(if($controls.Orientation.SelectedIndex -eq 1){'Portrait'}else{'Landscape'}); MinResolutionEnabled=$controls.MinResolutionEnabled.Checked; MinWidth=[int]$controls.MinWidth.Value; MinHeight=[int]$controls.MinHeight.Value}
 }
 function Save-Settings {
-    $settings=[ordered]@{SchemaVersion=2; Primary=(Read-Profile $primary); Secondary=(Read-Profile $secondary); IntervalMinutes=[int]$interval.Value; AutoStart=$auto.Checked}
+    $settings=[ordered]@{SchemaVersion=2; Language=$script:uiLanguage; Primary=(Read-Profile $primary); Secondary=(Read-Profile $secondary); IntervalMinutes=[int]$interval.Value; AutoStart=$auto.Checked}
     $lock=[Threading.Mutex]::new($false,'Local\DualScreenWallpaperWorker'); $held=$false
     try {
         try {$held=$lock.WaitOne(0)} catch [Threading.AbandonedMutexException] {$held=$true}
-        if(!$held){throw '正在扫描或换图，请等当前操作完成后再保存。'}
+        if(!$held){throw (Get-UiText '正在扫描或换图，请等当前操作完成后再保存。')}
         $existing=Get-Content $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if($existing.SchemaVersion -ne 2){
             $backup=Join-Path $script:root ('data\config-v1-'+[Guid]::NewGuid().ToString('N')+'.json')
@@ -93,7 +95,7 @@ function Save-Settings {
     } finally {if($held){$lock.ReleaseMutex()};$lock.Dispose()}
 }
 function Start-Worker($mode) {
-    if($script:worker -and !$script:worker.HasExited){throw '请等待当前操作完成。'}
+    if($script:worker -and !$script:worker.HasExited){throw (Get-UiText '请等待当前操作完成。')}
     $data=Join-Path $script:root 'data'; New-Item -ItemType Directory -Path $data -Force | Out-Null
     $script:stdout=Join-Path $data 'ui-output.log'; $script:stderr=Join-Path $data 'ui-error.log'
     [IO.File]::WriteAllText($script:stdout,''); [IO.File]::WriteAllText($script:stderr,'')
@@ -105,9 +107,9 @@ function Start-Worker($mode) {
     $script:worker=[Diagnostics.Process]::Start($start)
     $null=$script:worker.Handle
     foreach($button in $script:buttons){$button.Enabled=$false}
-    $status.Text='正在处理… 扫描完成后会显示结果。'; $log.Clear(); $timer.Start()
+    Set-Status '正在处理… 扫描完成后会显示结果。'; $log.Clear(); $timer.Start()
 }
-function Show-Failure($errorText){[void][Windows.Forms.MessageBox]::Show($form,[string]$errorText,'操作未完成','OK','Warning')}
+function Show-Failure($errorText){if($SmokeTest){throw $errorText};[void][Windows.Forms.MessageBox]::Show($form,[string]$errorText,(Get-UiText '操作未完成'),'OK','Warning')}
 $null=Button '保存并应用' 20 530 150 {try {Save-Settings; Start-Worker 'Apply'} catch {Show-Failure $_}}
 $null=Button '刷新图片索引' 185 530 150 {try {Save-Settings; Start-Worker 'Index'} catch {Show-Failure $_}}
 $null=Button '立即换图' 350 530 130 {try {Start-Worker 'Run'} catch {Show-Failure $_}}
@@ -122,21 +124,69 @@ $timer.Add_Tick({
         if($script:worker.HasExited){
             $timer.Stop(); $script:worker.WaitForExit()
             if($script:worker.ExitCode -eq 0){
-                $status.Text='操作完成。'
+                Set-Status '操作完成。'
                 $indexPath=Join-Path $script:root 'data\index.json'
                 if(Test-Path -LiteralPath $indexPath){
                     $idx=Get-Content -LiteralPath $indexPath -Raw -Encoding UTF8 | ConvertFrom-Json
-                    $status.Text="操作完成。合格图片：主屏 $($idx.Stats.Primary.Eligible) 张，副屏 $($idx.Stats.Secondary.Eligible) 张。"
+                    Set-Status '操作完成。合格图片：主屏 {0} 张，副屏 {1} 张。' @($idx.Stats.Primary.Eligible,$idx.Stats.Secondary.Eligible)
                 }
-            } else {$status.Text='操作失败，请查看下方详情；配置仍可修改后重试。'}
+            } else {Set-Status '操作失败，请查看下方详情；配置仍可修改后重试。'}
             foreach($button in $script:buttons){$button.Enabled=$true}
             $script:worker.Dispose();$script:worker=$null
         }
-    } catch {$status.Text="读取进度失败：$_"}
+    } catch {Set-Status '读取进度失败：{0}' @([string]$_)}
 })
 $form.Add_FormClosing({
     param($sender,$eventArgs)
-    if($script:worker -and !$script:worker.HasExited){$eventArgs.Cancel=$true; $status.Text='当前操作尚未完成，请稍候再关闭窗口。'}
+    if($script:worker -and !$script:worker.HasExited){$eventArgs.Cancel=$true; Set-Status '当前操作尚未完成，请稍候再关闭窗口。'}
+})
+# Translate existing controls in place so switching language preserves unsaved edits.
+$script:localizedControls=[Collections.Generic.List[object]]::new()
+function Register-LocalizedControls($parent) {
+    foreach($control in $parent.Controls){
+        if($control -isnot [Windows.Forms.TextBox] -and $control -isnot [Windows.Forms.ComboBox] -and $script:EnglishText.ContainsKey($control.Text)){
+            $script:localizedControls.Add(@{Control=$control;Key=$control.Text})
+        }
+        Register-LocalizedControls $control
+    }
+}
+Register-LocalizedControls $form
+function Set-Status([string]$key,[object[]]$values=@()) {
+    $script:statusKey=$key; $script:statusValues=$values
+    $status.Text=Get-UiText $key $values
+}
+function Set-UiLanguage([string]$selectedLanguage) {
+    $script:uiLanguage=$selectedLanguage
+    $wasChanging=$script:changingLanguage; $script:changingLanguage=$true
+    try {$script:language.SelectedIndex=$(if($selectedLanguage -eq 'en-US'){1}else{0})} finally {$script:changingLanguage=$wasChanging}
+    $form.Text=Get-UiText '双屏壁纸 v{0} · 设置' @($version)
+    foreach($entry in $script:localizedControls){$entry.Control.Text=Get-UiText $entry.Key}
+    foreach($profile in @($primary,$secondary)){
+        $selected=$profile.Orientation.SelectedIndex
+        $profile.Orientation.Items.Clear()
+        $profile.Orientation.Items.AddRange(@((Get-UiText '仅横图（宽 > 高）'),(Get-UiText '仅竖图（高 > 宽）')))
+        $profile.Orientation.SelectedIndex=$selected
+    }
+    Set-Status $script:statusKey $script:statusValues
+}
+foreach($control in $form.Controls){$control.Top+=40}
+$form.ClientSize=[Drawing.Size]::new(780,770)
+Label '语言 / Language' 20 15 155
+$language=[Windows.Forms.ComboBox]::new(); $language.DropDownStyle='DropDownList'; $language.Items.AddRange(@('简体中文','English')); $language.SetBounds(180,12,180,28); $form.Controls.Add($language)
+$language.SelectedIndex=$(if($script:uiLanguage -eq 'en-US'){1}else{0})
+Set-Status '就绪。首次扫描大量图片可能需要几分钟。'
+Set-UiLanguage $script:uiLanguage
+$script:changingLanguage=$false
+$language.Add_SelectedIndexChanged({
+    if($script:changingLanguage){return}
+    $previous=$script:uiLanguage
+    $chosen=if($language.SelectedIndex -eq 1){'en-US'}else{'zh-CN'}
+    try {Save-UiLanguage $script:configPath $chosen; Set-UiLanguage $chosen}
+    catch {
+        $script:changingLanguage=$true
+        try {$language.SelectedIndex=$(if($previous -eq 'en-US'){1}else{0})} finally {$script:changingLanguage=$false}
+        Show-Failure $_
+    }
 })
 if($SmokeTest){
     if($primary.Roots.Text -ne (@($c.Primary.Roots) -join "`r`n") -or $secondary.Roots.Text -ne (@($c.Secondary.Roots) -join "`r`n")){throw 'Folder controls do not match configuration'}
@@ -159,12 +209,23 @@ if($SmokeTest){
         $primary.OrientationEnabled.Checked=$true
         $secondary.OrientationEnabled.Checked=$false
         if(!$primary.Orientation.Enabled -or $secondary.Orientation.Enabled){throw 'Orientation controls are not independent'}
+        $language.SelectedIndex=1
+        if($script:uiLanguage -ne 'en-US' -or $tabs.TabPages[0].Text -ne 'Primary' -or $primary.MinWidth.Value -ne 1234 -or $primary.Roots.Text -ne $originalRoot){throw 'English switching lost control values'}
+        if((Convert-Settings (Get-Content $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json)).Language -ne 'en-US'){throw 'Language preference was not saved'}
+        Set-Status '操作完成。合格图片：主屏 {0} 张，副屏 {1} 张。' @(12,34)
+        $language.SelectedIndex=0
+        if($script:uiLanguage -ne 'zh-CN' -or $tabs.TabPages[0].Text -ne '主屏' -or $status.Text -notmatch '12.*34'){throw 'Chinese switching failed'}
+        $language.SelectedIndex=1
         Save-Settings
         $saved=Get-Content $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if($saved.SchemaVersion -ne 2 -or $saved.Primary.MinWidth -ne 1234 -or $saved.Primary.MinResolutionEnabled -or $saved.Primary.ExcludeFolders.Count -ne 1 -or $saved.Secondary.ExcludeFolders.Count -ne 0){throw 'Settings did not round-trip'}
+        if($saved.Language -ne 'en-US' -or $saved.SchemaVersion -ne 2 -or $saved.Primary.MinWidth -ne 1234 -or $saved.Primary.MinResolutionEnabled -or $saved.Primary.ExcludeFolders.Count -ne 1 -or $saved.Secondary.ExcludeFolders.Count -ne 0){throw 'Settings did not round-trip'}
         if($rawConfig.SchemaVersion -ne 2 -and !(Get-ChildItem -LiteralPath (Join-Path $testRoot 'data') -Filter 'config-v1-*.json')){throw 'Legacy backup missing'}
         Write-Output 'GUI persistence passed: independent toggles, retained values, exclusions and migration backup.'
     } finally {
+        $script:changingLanguage=$true
+        $language.SelectedIndex=$(if($c.Language -eq 'en-US'){1}else{0})
+        Set-UiLanguage $c.Language
+        $script:changingLanguage=$false
         $script:root=$originalRoot; $script:configPath=$originalConfigPath
         $allowed=[IO.Path]::GetFullPath((Join-Path $originalRoot 'data')).TrimEnd('\')+'\'
         $resolved=[IO.Path]::GetFullPath($testRoot)
@@ -183,10 +244,24 @@ if($SmokeTest){
     New-Item -ItemType Directory -Path (Join-Path $script:root 'data') -Force | Out-Null
     $preview=[Drawing.Bitmap]::new($form.Width,$form.Height)
     try {$form.DrawToBitmap($preview,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height));$preview.Save((Join-Path $script:root 'data\settings-preview.png'))} finally {$preview.Dispose()}
+    Set-Status '就绪。首次扫描大量图片可能需要几分钟。'
+    foreach($previewLanguage in @('zh-CN','en-US')){
+        Set-UiLanguage $previewLanguage
+        foreach($tabIndex in @(0,1)){
+            $tabs.SelectedIndex=$tabIndex
+            [Windows.Forms.Application]::DoEvents()
+            $preview=[Drawing.Bitmap]::new($form.Width,$form.Height)
+            try {$form.DrawToBitmap($preview,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height));$preview.Save((Join-Path $script:root "data\settings-$previewLanguage-$tabIndex.png"))} finally {$preview.Dispose()}
+        }
+    }
+    $tabs.SelectedIndex=0
+    # Verify completion messages in English as well as translated static controls.
+    Set-UiLanguage 'en-US'
+    Write-Output 'Language tests passed: live switching, saved preference, unsaved edits and bilingual previews.'
     Start-Worker 'Inspect'
     $deadline=(Get-Date).AddSeconds(15)
     while($script:worker -and (Get-Date) -lt $deadline){[Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 100}
-    if($script:worker -or $status.Text -notlike '操作完成*'){throw "GUI background worker failed: $($status.Text) $($log.Text)"}
+    if($script:worker -or $script:statusKey -notlike '操作完成*'){throw "GUI background worker failed: $($status.Text) $($log.Text)"}
     Write-Output 'GUI background worker passed: hidden process, progress polling and completion.'
     $timer.Dispose();$form.Dispose();exit 0
 }

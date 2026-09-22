@@ -16,7 +16,14 @@ Assert (Test-ImageDimensions ([pscustomobject]@{Width=1;Height=1}) $config.Secon
 Assert ($config.Secondary.MinHeight -eq 2560) 'disabled filter retains parameter'
 Assert ((Get-MonitorRole ([pscustomobject]@{Left=0;Top=0;Right=1080;Bottom=1920})) -eq 'Primary') 'portrait primary role'
 Assert ((Get-MonitorRole ([pscustomobject]@{Left=-1920;Top=0;Right=0;Bottom=1080})) -eq 'Secondary') 'landscape secondary role'
+Assert ($config.Language -eq 'zh-CN') 'legacy language defaults to Chinese'
+$config.Language='en-US'
+Assert ((Convert-Settings $config).Language -eq 'en-US') 'saved English preference preserved'
 $signature=Index-Signature $config
+$config.Language='zh-CN'
+Assert ($signature -eq (Index-Signature $config)) 'language does not invalidate index'
+$config.Language='unsupported'
+Assert ((Convert-Settings $config).Language -eq 'zh-CN') 'unknown language falls back to Chinese'
 $config.IntervalMinutes=7
 Assert ($signature -eq (Index-Signature $config)) 'interval does not invalidate index'
 $config.Primary.ExcludeFolders=@('D:\excluded')
