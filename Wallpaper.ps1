@@ -4,17 +4,14 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $taskName = 'DualScreenWallpaper-1Minute'
 . (Join-Path $PSScriptRoot 'Initialize-Config.ps1')
-$config = Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'Config.ps1')
+$config = Convert-Settings (Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
 $data = Join-Path $root 'data'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 if ($UiLog) { Start-Transcript -LiteralPath (Join-Path $data 'ui-output.log') -Force | Out-Null }
 Add-Type -Path (Join-Path $root 'Desktop.cs')
 Add-Type -Path (Join-Path $root 'ImageHeader.cs')
 Add-Type -AssemblyName PresentationCore,WindowsBase
-
-function Index-Signature($c) {
-    [ordered]@{ LandscapeRoots=@($c.LandscapeRoots); PortraitRoots=@($c.PortraitRoots); PortraitMinWidth=$c.PortraitMinWidth; PortraitMinHeight=$c.PortraitMinHeight; OnlyPortrait=($c.OnlyPortrait -ne $false) } | ConvertTo-Json -Depth 4 -Compress
-}
 
 function Get-Frame($path) {
     $header = [Wallpaper.ImageHeader]::Read($path)
@@ -35,48 +32,36 @@ function Get-Frame($path) {
 }
 
 function Build-Index {
-    $sets = @{}
-    $stats = @{}
-    $dimensions = @{}
-    foreach ($kind in 'Landscape','Portrait') {
-        $accepted = [Collections.Generic.List[string]]::new()
-        $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $bad = 0; $small = 0; $count = 0
-        foreach ($folder in $config.($kind + 'Roots')) {
-            if (!(Test-Path -LiteralPath $folder -PathType Container)) { throw "Missing folder: $folder" }
-            $scanErrors = @()
-            Get-ChildItem -LiteralPath $folder -File -Recurse -ErrorAction SilentlyContinue -ErrorVariable +scanErrors | ForEach-Object {
-                $file = $_
-                if ($file.Extension.ToLowerInvariant() -notin '.jpg','.jpeg','.jfif','.png','.bmp','.gif','.tif','.tiff','.ico','.wdp','.jxr','.webp','.heic','.heif','.avif') { return }
-                if (!$seen.Add($file.FullName)) { return }
-                $count++
-                if ($count % 1000 -eq 0) { Write-Host "$kind : scanned $count images..." }
-                try {
-                    if (!$dimensions.ContainsKey($file.FullName)) { $dimensions[$file.FullName] = Get-Frame $file.FullName }
-                    $d = $dimensions[$file.FullName]
-                    if ($kind -eq 'Portrait' -and ((($config.OnlyPortrait -ne $false) -and $d.Height -le $d.Width) -or $d.Width -lt $config.PortraitMinWidth -or $d.Height -lt $config.PortraitMinHeight)) { $small++; return }
-                    $accepted.Add($file.FullName)
-                } catch { $bad++ }
-            }
-            if ($scanErrors.Count) { Write-Warning "$folder : $($scanErrors.Count) scan errors" }
+    $sets = @{}; $stats = @{}; $dimensions = @{}
+    foreach ($kind in 'Primary','Secondary') {
+        $profile=$config.$kind
+        $accepted=[Collections.Generic.List[string]]::new()
+        $bad=0; $small=0; $count=0
+        Get-SourceImages $profile | ForEach-Object {
+            $file=$_; $count++
+            if ($count % 1000 -eq 0) { Write-Host "$kind : scanned $count images..." }
+            try {
+                if (!$dimensions.ContainsKey($file.FullName)) { $dimensions[$file.FullName]=Get-Frame $file.FullName }
+                if (!(Test-ImageDimensions $dimensions[$file.FullName] $profile)) { $small++; return }
+                $accepted.Add($file.FullName)
+            } catch { $bad++ }
         }
-        $sets[$kind] = $accepted.ToArray()
-        $stats[$kind] = @{ Scanned=$count; Eligible=$accepted.Count; Filtered=$small; Unreadable=$bad }
+        $sets[$kind]=$accepted.ToArray()
+        $stats[$kind]=@{ Scanned=$count; Eligible=$accepted.Count; Filtered=$small; Unreadable=$bad }
         Write-Host "$kind : eligible=$($accepted.Count), filtered=$small, unreadable=$bad"
-        if (!$accepted.Count) { throw "No eligible images for $kind. Check config.json." }
+        if (!$accepted.Count) { throw "No eligible images for $kind. Check folders, exclusions and filters in Settings." }
     }
-    $index = @{ Created=(Get-Date).ToString('o'); Config=($config | ConvertTo-Json -Depth 4 -Compress); Images=$sets; Stats=$stats }
+    $index=@{ Created=(Get-Date).ToString('o'); Config=($config | ConvertTo-Json -Depth 6 -Compress); Images=$sets; Stats=$stats }
     $index | ConvertTo-Json -Depth 6 -Compress | Set-Content -LiteralPath (Join-Path $data 'index.tmp') -Encoding UTF8
     Move-Item -LiteralPath (Join-Path $data 'index.tmp') -Destination (Join-Path $data 'index.json') -Force
 }
-
 function Get-Monitors($desktop) {
     for ($i=0; $i -lt $desktop.GetMonitorDevicePathCount(); $i++) {
         $id = $desktop.GetMonitorDevicePathAt($i)
         try { $rect = $desktop.GetMonitorRECT($id) } catch { continue } # Disconnected display
         $w = $rect.Right-$rect.Left; $h = $rect.Bottom-$rect.Top
         if ($w -gt 0 -and $h -gt 0) {
-            [pscustomobject]@{ Id=$id; Width=$w; Height=$h; Kind=$(if ($h -gt $w) {'Portrait'} else {'Landscape'}) }
+            [pscustomobject]@{ Id=$id; Width=$w; Height=$h; Kind=(Get-MonitorRole $rect) }
         }
     }
 }

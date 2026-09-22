@@ -1,13 +1,13 @@
-# DualScreenWallpaper
+﻿# DualScreenWallpaper
 
-Windows 双屏独立静态壁纸轮播：横屏和竖屏分别绑定图片目录，支持递归扫描、分辨率过滤和图形设置界面。
+Windows 双屏独立静态壁纸轮播：主屏和副屏分别绑定图片目录，支持递归扫描、独立过滤、子目录排除和图形设置界面。当前版本见 `VERSION`，更新内容见 `CHANGELOG.md`。
 
 ## 功能
 
-- 横屏和竖屏分别配置一个或多个目录，包含所有子目录，按路径去重。
-- 竖屏可仅使用竖图，并设置最低宽高，默认 1440×2560 像素。
+- 主屏和副屏分别配置一个或多个目录，递归扫描并去重；可各自排除指定目录及全部子目录。
+- 两边均可独立启用方向过滤（仅横图或仅竖图）和最低宽高过滤；关闭开关保留参数。启用方向过滤时不包含正方形图片。最低宽高为 0 表示不限该边。
 - 可配置切换间隔，默认每分钟随机切换；尽量避免连续重复。
-- 填充显示，按屏幕当前方向自动选择图片池。
+- 填充显示，按 Windows 主显示器选择主屏图片池，其余屏幕使用副屏图片池；旋转屏幕不改变分组。
 - 当前用户登录后自动运行；关闭设置窗口不影响轮播。
 - 通过 Windows 计划任务和隐藏启动器运行，不需要常驻脚本进程。
 
@@ -19,7 +19,7 @@ Windows 11，内置 Windows PowerShell 5.1、Windows Script Host 和任务计划
 
 1. 下载或克隆本仓库，放在可写、固定的本地目录。
 2. 双击 `00-settings.cmd`，或双击 `Open-Settings.vbs`。
-3. 添加横屏和竖屏图片目录，每行一个路径。
+3. 在“主屏”和“副屏”标签页分别添加图片目录，每行一个绝对路径；需要跳过的子目录填入对应的“排除目录 / Exclude”。
 4. 设置过滤规则、切换间隔，勾选自动轮播，点击“保存并应用”。
 
 首次启动自动从 `config.example.json` 创建本地 `config.json`。仓库不附带图片或个人目录配置。第一次扫描大型图库可能需要数分钟；界面显示扫描进度。新增、移动或删除图片后，点击“刷新图片索引”。仅修改间隔时会复用索引。
@@ -65,3 +65,24 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Settings.ps1 -Smo
 该检查验证界面及后台读取屏幕信息，不安装计划任务或更换壁纸。生成的本地配置和测试输出位于忽略列表中。
 
 接口参考：[Microsoft IDesktopWallpaper::SetWallpaper](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-idesktopwallpaper-setwallpaper)。
+
+## 排除目录与旧版升级
+
+排除目录使用绝对路径，可通过“添加目录”选择，也可手动输入尚不存在的目录。不支持通配符。排除 `D:\Pictures\Private` 会跳过该目录及后代，但不会误排除 `D:\Pictures\Private2`。排除项只影响所在标签页，即便两个屏幕使用同一图片根目录，也可以有不同排除规则。目录联接和符号链接不参与扫描，以避免循环与绕过排除规则。若没有合格图片，索引操作会报错并保留原索引。
+
+旧配置按“横屏 → 主屏、竖屏 → 副屏”载入；如果原来的主屏是竖屏，请在设置中交换两组目录和规则。旧文件在首次保存前保持不变，保存时备份到 `data/config-v1-*.json`。应用时会自动重建旧索引；直接运行“立即换图”前需先保存并应用或刷新索引。
+
+## 版本维护
+
+应用版本统一由 `VERSION` 管理，设置窗口显示该版本；`SchemaVersion` 是独立的配置结构版本。发布包只包含明确列出的程序文件，不包含 `config.json`、`data/` 或个人图片。
+
+```powershell
+# 检查配置迁移、筛选、排除、索引和主副屏分组
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Settings.ps1
+# 打包当前版本到 dist/DualScreenWallpaper-1.1.0.zip
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1
+# 下次发布：先在 CHANGELOG.md 增加 [1.1.1] 条目，再更新版本并打包
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1 -NewVersion 1.1.1
+```
+
+脚本要求三段式递增版本及对应更新记录，拒绝覆盖已有发布包。打包后可审查并提交代码、`VERSION` 和 `CHANGELOG.md`，再手动创建对应的 Git 标签。升级安装时保留原有 `config.json` 和 `data/`，解压覆盖程序文件后打开设置并保存应用。

@@ -1,9 +1,15 @@
-{
-  "LandscapeRoots": [],
-  "PortraitRoots": [],
-  "PortraitMinWidth": 1440,
-  "PortraitMinHeight": 2560,
+﻿{
+  "SchemaVersion": 2,
+  "Primary": {
+    "Roots": [], "ExcludeFolders": [],
+    "OrientationEnabled": false, "Orientation": "Landscape",
+    "MinResolutionEnabled": false, "MinWidth": 1920, "MinHeight": 1080
+  },
+  "Secondary": {
+    "Roots": [], "ExcludeFolders": [],
+    "OrientationEnabled": true, "Orientation": "Portrait",
+    "MinResolutionEnabled": true, "MinWidth": 1440, "MinHeight": 2560
+  },
   "IntervalMinutes": 1,
-  "AutoStart": true,
-  "OnlyPortrait": true
+  "AutoStart": true
 }
