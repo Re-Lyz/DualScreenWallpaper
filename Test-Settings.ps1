@@ -1,8 +1,18 @@
 ﻿$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Config.ps1')
+. (Join-Path $PSScriptRoot 'ImageProcessing.ps1')
 function Assert($condition,$message){if(!$condition){throw "FAILED: $message"}}
 $old=[pscustomobject]@{LandscapeRoots=@('D:\old-main');PortraitRoots=@('D:\old-secondary');OnlyPortrait=$true;PortraitMinWidth=1440;PortraitMinHeight=2560;IntervalMinutes=3;AutoStart=$false}
 $config=Convert-Settings $old
+Assert ($config.DisplayMode -eq 'Fill') 'legacy display defaults to Fill'
+$missingMode=[pscustomobject]@{SchemaVersion=2}
+Assert ((Convert-Settings $missingMode).DisplayMode -eq 'Fill') 'v2 display defaults to Fill'
+foreach($entry in @(@('Center',0),@('Tile',1),@('Stretch',2),@('Fit',3),@('Fill',4))) {
+    Assert ((Get-WallpaperPosition $entry[0]) -eq $entry[1]) 'Windows display position mapping'
+}
+$invalidMode=$false
+try {Convert-Settings ([pscustomobject]@{SchemaVersion=2;DisplayMode='invalid'})} catch {$invalidMode=$true}
+Assert $invalidMode 'unknown display mode rejected'
 Assert ($config.SchemaVersion -eq 2 -and $config.Primary.Roots[0] -eq 'D:\old-main' -and $config.Secondary.MinHeight -eq 2560 -and !$config.AutoStart) 'legacy settings migrated'
 Assert (!(Test-ImageDimensions ([pscustomobject]@{Width=2560;Height=1440}) $config.Secondary)) 'portrait rejects landscape'
 Assert (Test-ImageDimensions ([pscustomobject]@{Width=1440;Height=2560}) $config.Secondary) 'portrait accepts threshold'
@@ -20,6 +30,8 @@ Assert ($config.Language -eq 'zh-CN') 'legacy language defaults to Chinese'
 $config.Language='en-US'
 Assert ((Convert-Settings $config).Language -eq 'en-US') 'saved English preference preserved'
 $signature=Index-Signature $config
+$config.DisplayMode='Fit'
+Assert ($signature -eq (Index-Signature $config)) 'display mode does not invalidate index'
 $config.Language='zh-CN'
 Assert ($signature -eq (Index-Signature $config)) 'language does not invalidate index'
 $config.Language='unsupported'
@@ -54,7 +66,7 @@ try {
     # Load only index functions: no wallpaper changes, scheduled tasks or live config writes.
     $tokens=$null; $errors=$null
     $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Wallpaper.ps1'),[ref]$tokens,[ref]$errors)
-    foreach($name in @('Get-Frame','Build-Index')) {
+    foreach($name in @('Build-Index')) {
         $node=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name},$true)
         . ([scriptblock]::Create($node.Extent.Text))
     }

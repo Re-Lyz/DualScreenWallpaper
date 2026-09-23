@@ -2,14 +2,95 @@
 function Convert-Settings($value) {
     if ($value.SchemaVersion -and $value.SchemaVersion -ne 2) { throw 'Unsupported configuration version.' }
     if ($value.Language -notin 'zh-CN','en-US') { $value | Add-Member -NotePropertyName Language -NotePropertyValue 'zh-CN' -Force }
+    if (!$value.PSObject.Properties['DisplayMode']) { $value | Add-Member -NotePropertyName DisplayMode -NotePropertyValue 'Fill' }
+    $null=Get-WallpaperPosition $value.DisplayMode
+    if (!$value.PSObject.Properties['PlaybackOrder']) { $value | Add-Member -NotePropertyName PlaybackOrder -NotePropertyValue 'Random' }
+    if ($value.PlaybackOrder -cnotin 'Random','Sequential') { throw 'Unsupported playback order.' }
+    if (!$value.PSObject.Properties['SetupCompleted']) {
+        $configured=if($value.SchemaVersion -eq 2){@($value.Primary.Roots).Count -gt 0 -and @($value.Secondary.Roots).Count -gt 0}else{@($value.LandscapeRoots).Count -gt 0 -and @($value.PortraitRoots).Count -gt 0}
+        $value | Add-Member -NotePropertyName SetupCompleted -NotePropertyValue ([bool]$configured)
+    }
     if ($value.SchemaVersion -eq 2) { return $value }
     # Preserve the old filters; the user can review the new monitor roles in Settings.
     [pscustomobject]@{
-        SchemaVersion=2; Language=$value.Language
+        SchemaVersion=2; Language=$value.Language; DisplayMode=$value.DisplayMode; PlaybackOrder=$value.PlaybackOrder; SetupCompleted=$value.SetupCompleted
         Primary=[pscustomobject]@{ Roots=@($value.LandscapeRoots); ExcludeFolders=@(); OrientationEnabled=$false; Orientation='Landscape'; MinResolutionEnabled=$false; MinWidth=1920; MinHeight=1080 }
         Secondary=[pscustomobject]@{ Roots=@($value.PortraitRoots); ExcludeFolders=@(); OrientationEnabled=($value.OnlyPortrait -ne $false); Orientation='Portrait'; MinResolutionEnabled=($value.PortraitMinWidth -gt 0 -or $value.PortraitMinHeight -gt 0); MinWidth=[int]$value.PortraitMinWidth; MinHeight=[int]$value.PortraitMinHeight }
         IntervalMinutes=$value.IntervalMinutes
         AutoStart=($value.AutoStart -ne $false)
+    }
+}
+function Get-PlaybackCandidates([string[]]$paths, [string]$previous, [string]$order) {
+    if (!$paths.Count) { return }
+    if ($order -eq 'Sequential') {
+        $sorted=@($paths | Sort-Object @{Expression={[IO.Path]::GetFileName($_)}}, @{Expression={$_}})
+        $start=0
+        for($i=0; $i -lt $sorted.Count; $i++){if($sorted[$i] -eq $previous){$start=($i+1)%$sorted.Count; break}}
+        for($i=0; $i -lt $sorted.Count; $i++){$sorted[($start+$i)%$sorted.Count]}
+    } else {
+        $pool=@($paths | Where-Object {$_ -ne $previous})
+        if(!$pool.Count){$pool=$paths}
+        $pool | Get-Random -Count ([Math]::Min(10,$pool.Count))
+    }
+}
+function Assert-SettingsFormat($value) {
+    if($value -isnot [pscustomobject]){throw 'Configuration must be a JSON object.'}
+    if($value.SchemaVersion -ne 2){throw 'Unsupported configuration version.'}
+    foreach($name in 'IntervalMinutes') {
+        if($value.$name -isnot [int] -and $value.$name -isnot [long]){throw "Invalid integer: $name"}
+        if($value.$name -lt 1 -or $value.$name -gt 1440){throw "Out of range: $name"}
+    }
+    if($value.AutoStart -isnot [bool]){throw 'AutoStart must be a boolean.'}
+    if($value.PSObject.Properties['SetupCompleted'] -and $value.SetupCompleted -isnot [bool]){throw 'SetupCompleted must be a boolean.'}
+    if($value.Language -cnotin 'zh-CN','en-US'){throw 'Unsupported language.'}
+    $null=Get-WallpaperPosition $value.DisplayMode
+    if($value.PlaybackOrder -cnotin 'Random','Sequential'){throw 'Unsupported playback order.'}
+    foreach($kind in 'Primary','Secondary') {
+        $profile=$value.$kind
+        if($profile -isnot [pscustomobject]){throw "Missing profile: $kind"}
+        foreach($name in 'Roots','ExcludeFolders') {
+            if($profile.$name -isnot [array]){throw "$kind.$name must be an array."}
+            foreach($path in $profile.$name){
+                if($path -isnot [string] -or [string]::IsNullOrWhiteSpace($path)){throw "Invalid path in $kind.$name"}
+                $null=Get-NormalizedFolder $path
+            }
+        }
+        foreach($name in 'OrientationEnabled','MinResolutionEnabled') {
+            if($profile.$name -isnot [bool]){throw "$kind.$name must be a boolean."}
+        }
+        if($profile.Orientation -cnotin 'Landscape','Portrait'){throw "Invalid orientation: $kind"}
+        foreach($name in 'MinWidth','MinHeight') {
+            if(($profile.$name -isnot [int] -and $profile.$name -isnot [long]) -or $profile.$name -lt 0 -or $profile.$name -gt 100000){throw "Invalid dimension: $kind.$name"}
+        }
+    }
+}
+function Read-SettingsFile([string]$path) {
+    $value=Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if($value -isnot [pscustomobject]){throw 'Configuration must be a JSON object.'}
+    if(!$value.PSObject.Properties['SchemaVersion']) {
+        foreach($name in 'LandscapeRoots','PortraitRoots','OnlyPortrait','PortraitMinWidth','PortraitMinHeight','IntervalMinutes') {
+            if(!$value.PSObject.Properties[$name]){throw "Missing legacy setting: $name"}
+        }
+        foreach($name in 'LandscapeRoots','PortraitRoots'){if($value.$name -isnot [array]){throw "Invalid legacy setting: $name"}}
+        if($value.OnlyPortrait -isnot [bool]){throw 'Invalid legacy orientation switch.'}
+        foreach($name in 'PortraitMinWidth','PortraitMinHeight') {
+            if(($value.$name -isnot [int] -and $value.$name -isnot [long]) -or $value.$name -lt 0 -or $value.$name -gt 100000){throw "Invalid legacy dimension: $name"}
+        }
+        if($value.PSObject.Properties['AutoStart'] -and $value.AutoStart -isnot [bool]){throw 'Invalid legacy AutoStart.'}
+    } elseif($value.SchemaVersion -isnot [int] -or $value.SchemaVersion -ne 2){throw 'Unsupported configuration version.'}
+    if($value.PSObject.Properties['Language'] -and $value.Language -cnotin 'zh-CN','en-US'){throw 'Unsupported language.'}
+    $settings=Convert-Settings $value
+    Assert-SettingsFormat $settings
+    return $settings
+}
+function Get-WallpaperPosition([string]$mode) {
+    switch -CaseSensitive ($mode) {
+        'Center' { return 0 }
+        'Tile' { return 1 }
+        'Stretch' { return 2 }
+        'Fit' { return 3 }
+        'Fill' { return 4 }
+        default { throw "Unsupported display mode: $mode" }
     }
 }
 function Get-NormalizedFolder([string]$path) {

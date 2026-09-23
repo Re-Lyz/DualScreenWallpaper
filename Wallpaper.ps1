@@ -2,7 +2,9 @@
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $root = $PSScriptRoot
-$taskName = 'DualScreenWallpaper-1Minute'
+. (Join-Path $PSScriptRoot 'Lifecycle.ps1')
+if(Test-MaintenanceActive){if($Mode -eq 'Run'){exit 0}; throw 'Installation or removal is in progress.'}
+$taskName = $script:WallpaperTaskName
 . (Join-Path $PSScriptRoot 'Initialize-Config.ps1')
 . (Join-Path $PSScriptRoot 'Config.ps1')
 $config = Convert-Settings (Get-Content -LiteralPath (Join-Path $root 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
@@ -10,26 +12,8 @@ $data = Join-Path $root 'data'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 if ($UiLog) { Start-Transcript -LiteralPath (Join-Path $data 'ui-output.log') -Force | Out-Null }
 Add-Type -Path (Join-Path $root 'Desktop.cs')
-Add-Type -Path (Join-Path $root 'ImageHeader.cs')
+. (Join-Path $PSScriptRoot 'ImageProcessing.ps1')
 Add-Type -AssemblyName PresentationCore,WindowsBase
-
-function Get-Frame($path) {
-    $header = [Wallpaper.ImageHeader]::Read($path)
-    if ($header) { return [pscustomobject]@{ Width=$header[0]; Height=$header[1]; Orientation=$header[2] } }
-    $stream = [IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
-    try {
-        $decoder = [Windows.Media.Imaging.BitmapDecoder]::Create($stream, [Windows.Media.Imaging.BitmapCreateOptions]::DelayCreation, [Windows.Media.Imaging.BitmapCacheOption]::None)
-        $frame = $decoder.Frames[0]
-        $rotation = 0
-        try {
-            $orientation = $frame.Metadata.GetQuery('/app1/ifd/{ushort=274}')
-            if ($orientation) { $rotation = [int]$orientation }
-        } catch {}
-        $w = $frame.PixelWidth; $h = $frame.PixelHeight
-        if ($rotation -in 5,6,7,8) { $w = $frame.PixelHeight; $h = $frame.PixelWidth }
-        [pscustomobject]@{ Width=$w; Height=$h; Orientation=$rotation }
-    } finally { $stream.Dispose() }
-}
 
 function Build-Index {
     $sets = @{}; $stats = @{}; $dimensions = @{}
@@ -55,41 +39,6 @@ function Build-Index {
     $index | ConvertTo-Json -Depth 6 -Compress | Set-Content -LiteralPath (Join-Path $data 'index.tmp') -Encoding UTF8
     Move-Item -LiteralPath (Join-Path $data 'index.tmp') -Destination (Join-Path $data 'index.json') -Force
 }
-function Get-Monitors($desktop) {
-    for ($i=0; $i -lt $desktop.GetMonitorDevicePathCount(); $i++) {
-        $id = $desktop.GetMonitorDevicePathAt($i)
-        try { $rect = $desktop.GetMonitorRECT($id) } catch { continue } # Disconnected display
-        $w = $rect.Right-$rect.Left; $h = $rect.Bottom-$rect.Top
-        if ($w -gt 0 -and $h -gt 0) {
-            [pscustomobject]@{ Id=$id; Width=$w; Height=$h; Kind=(Get-MonitorRole $rect) }
-        }
-    }
-}
-
-function Convert-Wallpaper($source, $destination) {
-    $info = Get-Frame $source
-    $stream = [IO.File]::Open($source, 'Open', 'Read', 'ReadWrite')
-    try {
-        $decoder = [Windows.Media.Imaging.BitmapDecoder]::Create($stream, [Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat, [Windows.Media.Imaging.BitmapCacheOption]::OnLoad)
-        $frame = $decoder.Frames[0]
-    } finally { $stream.Dispose() }
-    $matrix = [Windows.Media.Matrix]::Identity
-    switch ($info.Orientation) {
-        2 { $matrix.Scale(-1,1) }
-        3 { $matrix.Rotate(180) }
-        4 { $matrix.Scale(1,-1) }
-        5 { $matrix = [Windows.Media.Matrix]::new(0,1,1,0,0,0) }
-        6 { $matrix.Rotate(90) }
-        7 { $matrix = [Windows.Media.Matrix]::new(0,-1,-1,0,0,0) }
-        8 { $matrix.Rotate(270) }
-    }
-    if (!$matrix.IsIdentity) { $frame = [Windows.Media.Imaging.TransformedBitmap]::new($frame, [Windows.Media.MatrixTransform]::new($matrix)) }
-    $encoder = [Windows.Media.Imaging.JpegBitmapEncoder]::new()
-    $encoder.QualityLevel = 95
-    $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($frame))
-    $out = [IO.File]::Create($destination)
-    try { $encoder.Save($out) } finally { $out.Dispose() }
-}
 
 function Run-Wallpaper {
     $indexPath = Join-Path $data 'index.json'
@@ -105,14 +54,12 @@ function Run-Wallpaper {
         }
         $statePath = Join-Path $data 'state.json'
         $previous = @{}
-        if (Test-Path -LiteralPath $statePath) { (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $previous[$_.Name]=$_.Value } }
-        $desktop.SetPosition(4) # DWPOS_FILL
+        if (Test-Path -LiteralPath $statePath) { (Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $previous[$_.Name]=$_.Value } }
+        $desktop.SetPosition((Get-WallpaperPosition $config.DisplayMode))
         foreach ($monitor in $monitors) {
-            $pool = @($index.Images.($monitor.Kind) | Where-Object { $_ -ne $previous[$monitor.Id].Source })
-            if (!$pool.Count) { $pool = @($index.Images.($monitor.Kind)) }
+            $pool = @(Get-PlaybackCandidates @($index.Images.($monitor.Kind)) $previous[$monitor.Id].Source $config.PlaybackOrder)
             $done = $false
-            for ($attempt=0; $attempt -lt 10 -and $pool.Count; $attempt++) {
-                $source = $pool | Get-Random
+            foreach ($source in $pool) {
                 try {
                     $slot = 1
                     if ($previous.ContainsKey($monitor.Id)) { $slot = 1-[int]$previous[$monitor.Id].Slot }
@@ -123,13 +70,14 @@ function Run-Wallpaper {
                     Convert-Wallpaper $source $output
                     $desktop.SetWallpaper($monitor.Id,$output)
                     $previous[$monitor.Id] = @{Source=$source; Slot=$slot}
+                    $previous | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath ($statePath+'.tmp') -Encoding UTF8
+                    Move-Item -LiteralPath ($statePath+'.tmp') -Destination $statePath -Force
                     Write-Host "$($monitor.Kind) $($monitor.Width)x$($monitor.Height): $source"
                     $done = $true; break
-                } catch { Write-Warning "$source : $_"; $pool = @($pool | Where-Object { $_ -ne $source }) }
+                } catch { Write-Warning "$source : $_" }
             }
             if (!$done) { throw "Unable to set wallpaper for $($monitor.Kind)" }
         }
-        $previous | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding UTF8
     } finally { $desktop.Dispose() }
 }
 
@@ -141,6 +89,7 @@ try {
         if ($Mode -eq 'Run') { exit 0 }
         throw 'Another wallpaper operation is running. Try again later.'
     }
+    if(Test-MaintenanceActive){if($Mode -eq 'Run'){exit 0}; throw 'Installation or removal is in progress.'}
     switch ($Mode) {
         'Index' { Build-Index }
         'Inspect' {
@@ -157,8 +106,7 @@ try {
             }
             if ($rebuild) { Build-Index }
             if ($config.AutoStart -eq $false) {
-                $existing = @(Get-ScheduledTask -ErrorAction Stop | Where-Object TaskName -eq $taskName)
-                if ($existing.Count) { Stop-ScheduledTask -TaskName $taskName; Unregister-ScheduledTask -TaskName $taskName -Confirm:$false }
+                Stop-OwnedWallpaper $root
                 Run-Wallpaper
                 Write-Host 'Applied once. Automatic slideshow is disabled.'
                 break
@@ -174,20 +122,7 @@ try {
             Run-Wallpaper
             Write-Host "Installed. Interval: $($config.IntervalMinutes) minute(s). Starts automatically at logon."
         }
-        'Uninstall' {
-            $task = Get-ScheduledTask -ErrorAction Stop | Where-Object TaskName -eq $taskName
-            if ($task) { Stop-ScheduledTask -TaskName $taskName; Unregister-ScheduledTask -TaskName $taskName -Confirm:$false }
-            $backup = Join-Path $data 'original.json'
-            if (Test-Path -LiteralPath $backup) {
-                $original = Get-Content -LiteralPath $backup -Raw -Encoding UTF8 | ConvertFrom-Json
-                $desktop = [Wallpaper.Desktop]::Open()
-                try {
-                    $desktop.SetPosition([int]$original.Position)
-                    foreach ($m in $original.Monitors) { if ($m.Path -and (Test-Path -LiteralPath $m.Path)) { $desktop.SetWallpaper($m.Id,$m.Path) } }
-                } finally { $desktop.Dispose() }
-            }
-            Write-Host 'Stopped. Previous static wallpaper restored where available.'
-        }
+        'Uninstall' { Stop-OwnedWallpaper $root -Restore; Write-Host 'Stopped owned slideshow; previous static wallpaper restored where available.' }
     }
 } catch {
     $log = Join-Path $data 'errors.log'

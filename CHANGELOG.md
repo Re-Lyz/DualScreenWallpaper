@@ -1,4 +1,21 @@
-﻿# 更新记录
+# 更新记录
+
+## [1.3.0] - 2026-09-23
+
+- 新增当前用户安装包：安装路径、快捷方式、覆盖升级保留配置，以及按安装目录归属清理轮播任务的卸载流程。
+- 新增首次设置引导：环境检查、主副屏确认、图库和筛选规则、轮播与预览；可从设置窗口重新打开。
+- 局部拆分设置控件、配置保存、界面测试、安装生命周期与打包清单，保留现有 PowerShell / WinForms 架构。
+- Add a per-user installer, a first-run setup wizard, and focused separation of UI, lifecycle and packaging responsibilities.
+
+- 新增随机 / 按文件名顺序轮播，按屏幕记住播放位置，顺序播放跳过失效图片并循环。
+- 新增配置导入导出，校验格式、提示缺失目录，导入先载入界面，保存前备份原配置。
+- 新增屏幕布局及壁纸预览，可选择示例图片、比较五种显示方式；与实际换图共用 EXIF 旋转逻辑。
+- Add playback order, validated settings import/export with backups, and monitor-layout wallpaper previews.
+
+- 新增五种全局显示方式，旧配置默认填充，切换模式复用索引。
+- 图片目录和排除目录支持多文件夹拖放、路径去重及无效项目提示。
+- 主副屏新增常见横竖屏最低分辨率预设，保留自定义输入，不自动启用过滤。
+- Add global display modes, folder drag and drop, and resolution presets with Chinese / English UI.
 
 ## [1.2.0] - 2026-09-23
 

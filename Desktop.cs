@@ -23,6 +23,7 @@ namespace Wallpaper {
   public string GetWallpaper(string id) { return instance.GetWallpaper(id); }
   public void SetWallpaper(string id, string path) { instance.SetWallpaper(id,path); }
   public int GetPosition() { return instance.GetPosition(); }
+  public uint GetBackgroundColor() { return instance.GetBackgroundColor(); }
   public void SetPosition(int position) { instance.SetPosition(position); }
   public void Dispose() { if (instance != null) { Marshal.ReleaseComObject(instance); instance = null; } }
  }

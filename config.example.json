@@ -1,6 +1,9 @@
 ﻿{
   "SchemaVersion": 2,
   "Language": "zh-CN",
+  "DisplayMode": "Fill",
+  "PlaybackOrder": "Random",
+  "SetupCompleted": false,
   "Primary": {
     "Roots": [], "ExcludeFolders": [],
     "OrientationEnabled": false, "Orientation": "Landscape",
