@@ -1,5 +1,6 @@
 # Local configuration contains personal folder paths.
 /config.json
+/config.json.backup-*.json
 # Indexes, source paths, monitor IDs, logs, screenshots and cached images.
 /data/
 *.log
@@ -7,3 +8,5 @@
 *.user
 .vs/
 /dist/
+**/bin/
+**/obj/

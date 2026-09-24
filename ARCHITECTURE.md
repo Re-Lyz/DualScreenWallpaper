@@ -1,6 +1,6 @@
 # Architecture and refactoring decision
 
-The released application remains a Windows PowerShell 5.1 / WinForms utility using IDesktopWallpaper and Task Scheduler. Version 1.4.0 uses focused extraction rather than a full rewrite. A future single-language rewrite is now planned in [TODO.md](TODO.md), with C# preferred and Rust retained as a comparison candidate. The new goals are smaller deployment size, faster startup and lower memory use; prototype benchmarks and compatibility checks must establish the benefits before choosing the final implementation.
+The released application remains a Windows PowerShell 5.1 / WinForms utility using IDesktopWallpaper and Task Scheduler. Version 1.4.0 uses focused extraction rather than a full rewrite. The C# / .NET 10 candidate is implemented under src/; see src/README.md for build instructions, validation and remaining acceptance. C# was selected for reuse of the Windows/.NET implementation. Warm UI startup, working set and deployment size were measured; no Rust comparison or cold-start benchmark is claimed.
 
 This release separates the responsibilities that were growing together:
 
@@ -23,7 +23,16 @@ This release separates the responsibilities that were growing together:
 | `Release.ps1` / `Build-Installer.ps1` / `Installer.iss` | ZIP and per-user Windows installer builds |
 | `Test-*.ps1` | Isolated regression, UI, feature and setup checks |
 
-The UI helper files are dot-sourced, not independent modules: they deliberately share the active form's controls and language. This is an incremental boundary, not a dependency-injection framework. Extract a typed application service or move to compiled C# only if future work (tray process, continuous animation, many independent monitor profiles) makes long-lived state and UI concurrency significantly more complex.
+The released 1.4 UI helper files are dot-sourced and share form state. The local C# 2.0 candidate under [src/](src/README.md) now implements the application in compiled C#: typed Schema 3 configuration and atomic storage, mixed image sources, independent monitor profiles, Windows decoding/rendering, resizable WinForms UI, task scheduling and detached update transactions. It reuses the existing C# COM ABI and image-header reader. Production 1.4 files and package allowlist remain available for maintenance; the new build has its own VERSION, installer and publish outputs. The installed user copy has not been replaced.
+
+## C# candidate boundaries
+
+- Core contains no UI/COM dependencies. Image decoding is injected into scanning tests; source enumeration and filtering apply identically to folders and explicit files.
+- Monitor profiles use stable Windows device IDs, with Primary/Secondary defaults for unconfigured screens. Disconnected profiles persist. Schema 2 and legacy input migrate in memory; save writes Schema 3 with a backup.
+- Background operations run on separate STA threads for WPF/COM compatibility. Task Scheduler invokes the compiled EXE, not PowerShell/VBScript. No permanent slideshow process is required.
+- Crossfade now uses a short-lived child of Explorer's background WorkerW rather than repeatedly replacing wallpaper files. Host detection can fail and is not a documented extension contract; failures are logged and direct switching remains available. Only offline rendering has been validated for this implementation. Real-desktop acceptance is deferred at the user's request.
+- The updater restricts HTTPS hosts and validates GitHub asset names, sizes and SHA-256. Portable ZIPs contain root-level program files only. A separate copied runner waits for Settings to exit, backs up files and applies or restores them under maintenance/worker locks. Installed updates use Inno Setup; file recovery does not rewrite uninstall registration.
+- Independent packages include .NET 10; smaller framework-dependent packages require the shared Desktop Runtime. Runtime-included size is explicitly reported, rather than comparing only the managed EXE with the old installer.
 
 ## Update and transition boundaries
 
