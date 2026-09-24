@@ -1,6 +1,6 @@
 # Architecture and refactoring decision
 
-The application remains a Windows PowerShell 5.1 / WinForms utility using IDesktopWallpaper and Task Scheduler. A full rewrite is not justified by the current feature set: it would replace working OS integration, configuration migration and image handling without a demonstrated user benefit.
+The released application remains a Windows PowerShell 5.1 / WinForms utility using IDesktopWallpaper and Task Scheduler. Version 1.4.0 uses focused extraction rather than a full rewrite. A future single-language rewrite is now planned in [TODO.md](TODO.md), with C# preferred and Rust retained as a comparison candidate. The new goals are smaller deployment size, faster startup and lower memory use; prototype benchmarks and compatibility checks must establish the benefits before choosing the final implementation.
 
 This release separates the responsibilities that were growing together:
 

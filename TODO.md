@@ -3,6 +3,13 @@
 已完成项已勾选；其余为后续计划，暂无确定的发布时间。
 Completed features are checked below. Remaining features have no committed release dates.
 
+- [ ] **单一语言重构（优先 C#）/ Single-language rewrite (C# preferred)**：以体积小、启动快、低内存占用为目标，将应用界面、壁纸处理、配置与更新逻辑统一为编译后的 C# 程序，替代 PowerShell / VBScript 运行链。优先评估 C# 原生 Windows 界面方案，Rust 作为对比候选；先制作最小原型，测量冷启动到可操作界面的时间、换图进程启动耗时、空闲内存和包含运行时依赖的实际安装体积，再确定最终方案。保留旧配置迁移、安装版/便携版及现有功能；不预设换语言就一定更快、更小。Consolidate application logic into compiled C#, comparing a minimal Rust alternative before final selection. Benchmark cold startup, wallpaper-worker startup, idle memory and total installed size including runtime dependencies; preserve migration and existing features.
+- [ ] **更简洁的界面设计 / Simpler UI layout**：重新设计信息层级，按“屏幕选择 → 图片来源 → 播放设置”组织主要操作；高级过滤和维护功能按需展开，减少按钮堆叠。播放顺序与切换效果保持独立，明确显示当前状态、保存与应用结果；先做布局原型，并验证中英文、高 DPI 和小屏幕下的可读性。Prototype a clearer screen/source/playback layout with progressive disclosure of advanced options, separate playback order and transition controls, and clear status/save feedback; verify both languages, high DPI and small screens.
+- [ ] **图片来源同时支持目录和单张图片 / Folders and individual image paths**：每块屏幕的图片来源允许混合添加文件夹与具体图片文件，支持选择、拖放和粘贴路径。文件夹递归扫描，文件只加入该图片；统一去重，明确标识来源类型并提示失效路径。明确单张图片与过滤/排除规则的关系，兼容旧目录配置及导入导出，复用现有图片格式、EXIF 和解码支持。Allow mixed folders and individual image files through pickers, drag-and-drop and pasted paths; scan folders recursively, deduplicate images, identify source types and report missing paths. Define filtering/exclusion behavior and preserve legacy settings and import/export compatibility.
+
+重构选型说明：当前项目已有 WinForms、.NET 图像处理及 C# Windows 接口封装，因此优先 C# 是基于迁移与维护成本的判断，不是性能测试结论。Rust 也可通过 [Rust for Windows](https://learn.microsoft.com/en-us/windows/dev-environment/rust/rust-for-windows) 调用 Windows API。C# 发布方式需要实测，不能默认 Native AOT 适配现有界面与 COM 调用；参见 [.NET Native AOT 限制](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/)。
+Language rationale: C# is preferred for continuity with the existing Windows/.NET implementation, not a measured performance advantage. Compare deployment options and validate UI/COM compatibility before choosing AOT.
+
 - [x] **播放顺序选择 / Playback order selection**：支持选择随机、顺序等图片播放方式。Allow choosing random or sequential image playback.
 - [x] **幻灯片切换效果 / Slideshow transition effects**：独立选择直接切换或淡入淡出；不支持过渡的场景自动直接切换。Choose Instant or Crossfade independently of playback order, with direct-switch fallback where needed.
 - [x] **更多的显示方式 / More display modes**：在填充之外增加适应、拉伸、居中、平铺等模式，说明缩放与裁剪行为。Add Fit, Stretch, Center and Tile alongside Fill, with clear scaling and cropping behavior.
