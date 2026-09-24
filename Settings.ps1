@@ -15,6 +15,7 @@ $script:configPath=Join-Path $PSScriptRoot 'config.json'
 . (Join-Path $PSScriptRoot 'Settings.Controls.ps1')
 . (Join-Path $PSScriptRoot 'Settings.Persistence.ps1')
 . (Join-Path $PSScriptRoot 'SetupWizard.ps1')
+. (Join-Path $PSScriptRoot 'UpdateUI.ps1')
 $script:importPending=$false
 $rawConfig=Get-Content $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $c=Convert-Settings $rawConfig
@@ -39,9 +40,13 @@ $displayKeys=@('填充（等比铺满，裁剪边缘）','适应（完整显示�
 $display=[Windows.Forms.ComboBox]::new(); $display.DropDownStyle='DropDownList'; $display.SetBounds(385,419,375,28); $form.Controls.Add($display)
 $display.Items.AddRange($displayKeys); $display.SelectedIndex=[Array]::IndexOf($displayModes,$c.DisplayMode)
 Label '播放顺序' 20 460 100
-$order=[Windows.Forms.ComboBox]::new(); $order.DropDownStyle='DropDownList'; $order.SetBounds(122,457,638,28); $form.Controls.Add($order)
+$order=[Windows.Forms.ComboBox]::new(); $order.DropDownStyle='DropDownList'; $order.SetBounds(122,457,310,28); $form.Controls.Add($order)
 $order.Items.AddRange(@('随机（尽量不连续重复）','顺序（按文件名排序，循环播放）'))
 $order.SelectedIndex=$(if($c.PlaybackOrder -eq 'Sequential'){1}else{0})
+Label '切换效果' 445 460 95
+$transition=[Windows.Forms.ComboBox]::new();$transition.DropDownStyle='DropDownList';$transition.SetBounds(545,457,215,28);$form.Controls.Add($transition)
+$transition.Items.AddRange(@('直接切换','淡入淡出'))
+$transition.SelectedIndex=$(if($c.TransitionEffect -eq 'CrossFade'){1}else{0})
 $auto=[Windows.Forms.CheckBox]::new(); $auto.Text='启用自动轮播，并在 Windows 登录后自动启动'; $auto.Checked=$c.AutoStart; $auto.SetBounds(20,498,730,28); $form.Controls.Add($auto)
 Label $(if($rawConfig.SchemaVersion -ne 2){'旧配置已载入：横屏 → 主屏，竖屏 → 副屏。请核对后保存；旧配置将备份。'}else{'取消自动轮播后，“保存并应用”仅换图一次，同时关闭自动轮播。'}) 20 531 750
 $status=[Windows.Forms.Label]::new(); $status.SetBounds(20,650,740,28); $status.Text='就绪。首次扫描大量图片可能需要几分钟。'; $form.Controls.Add($status)
@@ -83,6 +88,7 @@ $null=Button '导出配置…' 185 610 150 {
     try {if($dialog.ShowDialog($form) -eq 'OK'){Export-Settings $dialog.FileName; Set-Status '配置已导出。'}} catch {Show-Failure $_} finally {$dialog.Dispose()}
 }
 $null=Button '壁纸预览…' 350 610 150 {try {$chosen=Show-WallpaperPreview $form $displayModes[$display.SelectedIndex]; if($chosen){$display.SelectedIndex=[Array]::IndexOf($displayModes,$chosen)}} catch {Show-Failure $_}}
+$null=Button '检查更新…' 515 610 155 {try {if(Show-UpdateDialog $form $script:root){$form.Close()}} catch {Show-Failure $_}}
 $timer=[Windows.Forms.Timer]::new(); $timer.Interval=800
 $timer.Add_Tick({
     try {
@@ -145,6 +151,8 @@ function Set-UiLanguage([string]$selectedLanguage) {
     $order.Items.Clear()
     $order.Items.AddRange(@((Get-UiText '随机（尽量不连续重复）'),(Get-UiText '顺序（按文件名排序，循环播放）')))
     $order.SelectedIndex=$selected
+    $selected=$transition.SelectedIndex
+    $transition.Items.Clear();$transition.Items.AddRange(@((Get-UiText '直接切换'),(Get-UiText '淡入淡出')));$transition.SelectedIndex=$selected
     Set-Status $script:statusKey $script:statusValues
 }
 foreach($control in $form.Controls){if($control.Top -ge 419){$control.Top+=20}; $control.Top+=40}

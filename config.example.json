@@ -3,6 +3,7 @@
   "Language": "zh-CN",
   "DisplayMode": "Fill",
   "PlaybackOrder": "Random",
+  "TransitionEffect": "Instant",
   "SetupCompleted": false,
   "Primary": {
     "Roots": [], "ExcludeFolders": [],

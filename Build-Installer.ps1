@@ -1,4 +1,4 @@
-﻿param([string]$CompilerPath)
+﻿param([string]$CompilerPath,[string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Package.ps1')
 $version=(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'VERSION') -Raw).Trim()
@@ -10,7 +10,7 @@ if(!$CompilerPath) {
     $CompilerPath=$candidates | Where-Object {Test-Path -LiteralPath $_ -PathType Leaf} | Select-Object -First 1
 }
 if(!$CompilerPath -or !(Test-Path -LiteralPath $CompilerPath -PathType Leaf)){throw 'Install Inno Setup 6.7+ or pass -CompilerPath to ISCC.exe.'}
-$output=Join-Path $PSScriptRoot 'dist'
+$output=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $PSScriptRoot 'dist'}
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $target=Join-Path $output "DualScreenWallpaper-$version-Setup.exe"
 if(Test-Path -LiteralPath $target){throw "Installer already exists: $target"}

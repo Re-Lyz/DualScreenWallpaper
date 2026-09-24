@@ -40,6 +40,23 @@ try {
     Assert ((Invoke-TestProcess $InstallerPath ($baseArgs+('/LOG="'+(Join-Path $fixture 'upgrade.log')+'"'))) -eq 0) 'in-place upgrade'
     Assert ((Get-FileHash -LiteralPath $configPath).Hash -eq $before) 'upgrade preserves configuration exactly'
     Assert ([IO.File]::ReadAllText($sentinel) -eq 'retained user data') 'upgrade preserves data'
+    $upgradeLog=Get-Content -LiteralPath (Join-Path $fixture 'upgrade.log') -Raw
+    Assert ($upgradeLog -match 'Existing version: 1.2.9' -and $upgradeLog -match 'Upgrade the existing installation') 'upgrade notice includes old version and action'
+    Assert ((Invoke-TestProcess $InstallerPath ($baseArgs+('/LOG="'+(Join-Path $fixture 'reinstall.log')+'"'))) -eq 0) 'same-version reinstall'
+    Assert ((Get-Content -LiteralPath (Join-Path $fixture 'reinstall.log') -Raw) -match 'Reinstall this version') 'same-version notice'
+    Assert ((Get-FileHash -LiteralPath $configPath).Hash -eq $before) 'reinstall preserves configuration'
+    if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'UpdateApply.ps1')) {
+        $updateJob=Join-Path $install 'data\updates\installer-update-test';New-Item -ItemType Directory -Path $updateJob -Force | Out-Null
+        $packageName="DualScreenWallpaper-$version-Setup.exe"
+        Copy-Item -LiteralPath $InstallerPath -Destination (Join-Path $updateJob $packageName)
+        @{Root=$install} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $updateJob 'request.json') -Encoding UTF8
+        @{Version=$version;Kind='Installed';Name=$packageName;Url="https://github.com/Re-Lyz/DualScreenWallpaper/releases/download/v$version/$packageName";Size=(Get-Item $InstallerPath).Length;Sha256=(Get-FileHash $InstallerPath).Hash} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $updateJob 'release-info.json') -Encoding UTF8
+        Set-Content -LiteralPath (Join-Path $install 'VERSION') -Value '1.0.0' -Encoding ASCII
+        Assert ((Invoke-TestProcess $ps @('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'UpdateApply.ps1')+'"'),'-Job',('"'+$updateJob+'"'),'-NonInteractive')) -eq 0) 'installed updater launches installer'
+        Assert ((Get-Content -LiteralPath (Join-Path $updateJob 'apply-result.json') -Raw | ConvertFrom-Json).Success) 'installed updater reports success'
+        Assert (Test-Path -LiteralPath (Join-Path $updateJob 'backup\config.json')) 'installed updater backs up configuration'
+        Assert ((Get-FileHash -LiteralPath $configPath).Hash -eq $before) 'installed updater retains settings'
+    }
     Set-Content -LiteralPath (Join-Path $install 'VERSION') -Value '9.9.9' -Encoding ASCII
     Assert ((Invoke-TestProcess $InstallerPath ($baseArgs+('/LOG="'+(Join-Path $fixture 'downgrade.log')+'"'))) -ne 0) 'downgrade rejected'
     Assert ((Get-FileHash -LiteralPath $configPath).Hash -eq $before) 'rejected downgrade preserves configuration'

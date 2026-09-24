@@ -3,6 +3,7 @@ Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 . (Join-Path $PSScriptRoot 'Config.ps1')
 . (Join-Path $PSScriptRoot 'Language.ps1')
 . (Join-Path $PSScriptRoot 'Preview.ps1')
+. (Join-Path $PSScriptRoot 'Transition.ps1')
 function Assert($condition,$message){if(!$condition){throw "FAILED: $message"}}
 $script:uiLanguage='en-US'
 $paths=@('D:\b\02.jpg','D:\a\01.jpg','D:\a\02.jpg')

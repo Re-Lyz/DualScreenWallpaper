@@ -8,7 +8,7 @@ A Windows wallpaper slideshow with Primary and Secondary profiles, folder exclus
 
 Requires Windows 11, Windows PowerShell 5.1, Windows Script Host (VBScript) and Task Scheduler. No PowerShell modules need to be downloaded.
 
-1. Run `DualScreenWallpaper-1.3.0-Setup.exe`, or extract the ZIP / clone this repository to a writable, permanent local folder.
+1. Run `DualScreenWallpaper-1.4.0-Setup.exe`, or extract the ZIP / clone this repository to a writable, permanent local folder.
 2. Open Settings from the Start Menu, or run `00-settings.cmd` / `Open-Settings.vbs`. Fresh configurations open the setup wizard; existing configured libraries skip it.
 3. Select **English** from **语言 / Language** at the top. The interface changes immediately and remembers your choice without discarding unsaved edits.
 4. Add image folders in the **Primary** and **Secondary** tabs. Use one absolute path per line. Subfolders are scanned recursively. Add folders to skip in each tab's exclusion list.
@@ -53,7 +53,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1
 
 Tests use isolated fixtures without changing wallpapers or installing tasks. To release a new version, add its `CHANGELOG.md` entry, then run `Release.ps1 -NewVersion X.Y.Z`. Versions must increase; existing archives cannot be overwritten. Review and commit changes before creating a Git tag. Preserve `config.json` and `data/` during upgrades.
 
-The application makes no network requests and uploads no images. `config.json`, `data/` and `dist/` are ignored by Git. Release packages include only an explicit list of application files. Do not upload personal paths, indexes, logs or backups when sharing the project.
+The application contacts GitHub and its release download services only when you manually check for or download updates. Version comparison happens locally; no images, library paths or settings are uploaded, and there is no telemetry. `config.json`, `data/` and `dist/` are ignored by Git. Release packages include only an explicit list of application files. Do not upload personal paths, indexes, logs or backups when sharing the project.
 
 See [TODO.md](TODO.md) for future features.
 
@@ -93,3 +93,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-Installer.ps1 -C
 `Test-Installer.ps1` performs a real temporary installation, upgrade, downgrade rejection and uninstall, including shortcut and configuration checks. It refuses to run if an installed copy is already registered; use a test account or VM. It does not create slideshow tasks or change wallpapers. Logs and retained test data remain under ignored `data/installer-test-*` directories.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the focused refactor and why a full rewrite is not currently warranted.
+
+## Transition effects and online updates
+
+Playback order and transition effect are separate settings. Choose Instant (the legacy default) or Crossfade. Crossfade renders eight intermediate frames per monitor, targeting about 0.8 seconds; Windows wallpaper application latency can extend this and affect smoothness. Tile, screens over 16 million pixels, unreadable previous wallpapers and transition failures use direct switching. Two extra transition caches are reused per monitor.
+
+Check for updates manually reads the latest stable GitHub release and displays its notes. Download update selects EXE for an installed copy or ZIP for a portable copy, verifying size and SHA-256. Update and restart closes Settings, backs up files and updates while preserving saved configuration and data. Save pending edits first. Installed copies run the installer; portable copies replace program files. There are no automatic startup checks or automatic installations.
+
+Downloads, logs and backups remain under `data/updates/<update-job>/`. Portable copy failures attempt automatic rollback. For manual recovery, close Settings and run that job's `Restore.cmd` to restore backed-up programs and configuration. Installed-copy file recovery does not rewrite installation registration. Backups are not automatically deleted; remove old job directories once recovery is no longer needed.
+
+Both distributions have the same features. The installer adds Start Menu shortcuts, an optional desktop shortcut and Windows uninstall registration; the portable ZIP runs after extraction. Both create a scheduled task when automatic slideshow is enabled; stop it before moving the folder. Version 1.3.0 and earlier require a manual upgrade to obtain the built-in updater.
+
+```powershell
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Test-Updates.ps1
+# Optional live GitHub query, download and verification:
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Test-Updates.ps1 -LiveCheck
+```

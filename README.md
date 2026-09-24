@@ -23,7 +23,7 @@ Windows 11，内置 Windows PowerShell 5.1、Windows Script Host 和任务计划
 
 ## 开始使用
 
-1. 运行发布包中的 `DualScreenWallpaper-1.3.0-Setup.exe` 安装；也可解压 ZIP 或克隆仓库到可写、固定的本地目录。
+1. 运行发布包中的 `DualScreenWallpaper-1.4.0-Setup.exe` 安装；也可解压 ZIP 或克隆仓库到可写、固定的本地目录。
 2. 从开始菜单打开 Settings，或双击 `00-settings.cmd` / `Open-Settings.vbs`。新配置首次打开会进入设置引导，已有图库配置不自动重复引导。
 3. 在“主屏”和“副屏”标签页分别添加图片目录，每行一个绝对路径；需要跳过的子目录填入对应的“排除目录 / Exclude”。
 4. 设置过滤规则、切换间隔，勾选自动轮播，点击“保存并应用”。
@@ -55,7 +55,7 @@ JPG 和 PNG 索引优先读取文件头；实际换图时通过 Windows 图像�
 
 ## 隐私
 
-本工具不包含联网请求、遥测或上传图片的代码。以下本地文件默认被 Git 忽略，不应上传：
+仅在手动检查或下载更新时访问 GitHub 及其发布文件下载服务；版本比较在本地进行，不上传图片、图片目录或配置，不包含遥测。以下本地文件默认被 Git 忽略，不应上传：
 
 - `config.json`：个人图片目录及设置。
 - `data/`：图片索引、当前图片路径、屏幕标识、原壁纸备份信息、日志、界面预览和壁纸缓存。
@@ -85,10 +85,10 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Settings.ps1 -Smo
 ```powershell
 # 检查配置迁移、筛选、排除、索引和主副屏分组
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Settings.ps1
-# 打包当前版本到 dist/DualScreenWallpaper-1.3.0.zip
+# 打包当前版本到 dist/DualScreenWallpaper-1.4.0.zip
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1
-# 下次发布：先在 CHANGELOG.md 增加 [1.3.1] 条目，再更新版本并打包
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1 -NewVersion 1.3.1
+# 下次发布：先在 CHANGELOG.md 增加 [1.4.1] 条目，再更新版本并打包
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Release.ps1 -NewVersion 1.4.1
 ```
 
 脚本要求三段式递增版本及对应更新记录，拒绝覆盖已有发布包。打包后可审查并提交代码、`VERSION` 和 `CHANGELOG.md`，再手动创建对应的 Git 标签。升级安装时保留原有 `config.json` 和 `data/`，解压覆盖程序文件后打开设置并保存应用。
@@ -129,3 +129,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build-Installer.ps1 -C
 `Test-Installer.ps1` 会真实创建、升级并卸载一个临时安装，验证快捷方式、配置保留和降级阻止；已有注册安装时拒绝运行，适合测试账户或虚拟机。它不创建轮播任务、不更换桌面壁纸；临时安装的配置与日志保留在忽略的 `data/installer-test-*` 目录。
 
 本次采用局部重构，保留 PowerShell / WinForms 架构。模块分工和后续重构条件见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+
+## 切换效果与在线更新
+
+播放顺序和切换效果分别设置：顺序决定下一张图片，效果可选择直接切换或淡入淡出。旧配置默认直接切换。淡入淡出为每块屏幕生成 8 张中间帧，目标耗时约 0.8 秒；Windows 应用壁纸的速度可能延长时间，实际流畅度取决于系统。平铺、单屏超过 1600 万像素、旧壁纸无法读取或过渡失败时直接切换。每块屏幕额外复用两张过渡缓存，不持续新增图片缓存。
+
+设置窗口的“检查更新…”手动读取 GitHub 最新正式版并显示更新说明。“下载更新”按当前副本类型选择 EXE 或 ZIP，并验证大小与 SHA-256；“更新并重启”关闭设置、备份并更新，保留已保存的配置及数据。请先保存编辑。安装版调用安装程序，便携版替换程序文件。不会在启动时自动检查，也不会自动安装。
+
+更新记录、下载和备份保存在 `data/updates/<本次更新目录>/`。便携版替换失败时尝试自动回滚；需要手动恢复时，关闭设置后运行该目录内的 `Restore.cmd`，恢复备份的程序和配置。安装版的文件恢复不重写安装注册信息。备份不会自动清理，确认新版运行正常且不再需要恢复后，可删除旧更新目录。
+
+安装版和便携版功能相同：安装版提供开始菜单、可选桌面快捷方式和 Windows 卸载入口；便携版解压即可使用。两者启用自动轮播时都会创建计划任务，移动目录前都应先停止轮播。1.3.0 及更早版本没有内置更新入口，需要先手动升级到包含此功能的版本。
+
+```powershell
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Test-Updates.ps1
+# 另行验证真实 GitHub 查询、下载和校验：
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\Test-Updates.ps1 -LiveCheck
+```

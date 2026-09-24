@@ -10,7 +10,7 @@ function Read-Profile($controls, [switch]$AllowMissing) {
 }
 
 function Read-UiSettings([switch]$AllowMissing) {
-    [ordered]@{SchemaVersion=2; SetupCompleted=$true; Language=$script:uiLanguage; DisplayMode=$displayModes[$display.SelectedIndex]; PlaybackOrder=$(if($order.SelectedIndex -eq 1){'Sequential'}else{'Random'}); Primary=(Read-Profile $primary -AllowMissing:$AllowMissing); Secondary=(Read-Profile $secondary -AllowMissing:$AllowMissing); IntervalMinutes=[int]$interval.Value; AutoStart=$auto.Checked}
+    [ordered]@{SchemaVersion=2; SetupCompleted=$true; Language=$script:uiLanguage; DisplayMode=$displayModes[$display.SelectedIndex]; PlaybackOrder=$(if($order.SelectedIndex -eq 1){'Sequential'}else{'Random'}); TransitionEffect=$(if($transition.SelectedIndex -eq 1){'CrossFade'}else{'Instant'}); Primary=(Read-Profile $primary -AllowMissing:$AllowMissing); Secondary=(Read-Profile $secondary -AllowMissing:$AllowMissing); IntervalMinutes=[int]$interval.Value; AutoStart=$auto.Checked}
 }
 
 function Load-UiSettings($settings) {
@@ -25,6 +25,7 @@ function Load-UiSettings($settings) {
     $interval.Value=$settings.IntervalMinutes; $auto.Checked=$settings.AutoStart
     $display.SelectedIndex=[Array]::IndexOf($displayModes,$settings.DisplayMode)
     $order.SelectedIndex=$(if($settings.PlaybackOrder -eq 'Sequential'){1}else{0})
+    $transition.SelectedIndex=$(if($settings.TransitionEffect -eq 'CrossFade'){1}else{0})
     Set-UiLanguage $settings.Language
 }
 

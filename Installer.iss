@@ -48,6 +48,91 @@ Filename: "{sys}\wscript.exe"; Parameters: """{app}\Open-Settings.vbs"""; Descri
 [Code]
 var
   MaintenanceHandle: LongWord;
+  ExistingInstallPage: TOutputMsgWizardPage;
+
+function InstalledVersionText: String;
+var
+  VersionFile: AnsiString;
+  RegisteredPath: String;
+  Parsed: Int64;
+begin
+  Result := '';
+  if LoadStringFromFile(ExpandConstant('{app}\VERSION'), VersionFile) then
+    if StrToVersion(Trim(String(VersionFile)) + '.0', Parsed) then begin
+      Result := Trim(String(VersionFile));
+      exit;
+    end;
+  if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{609C20B9-0177-4C33-92AB-D5E11347ED72}_is1', 'InstallLocation', RegisteredPath) then
+    if CompareText(RemoveBackslashUnlessRoot(RegisteredPath), RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) = 0 then
+      RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{609C20B9-0177-4C33-92AB-D5E11347ED72}_is1', 'DisplayVersion', Result);
+end;
+
+function HasExistingInstall: Boolean;
+begin
+  Result := (InstalledVersionText <> '') or FileExists(ExpandConstant('{app}\Settings.ps1'));
+end;
+
+function IsNewerInstalled: Boolean;
+var
+  ExistingVersion, NewVersion: Int64;
+begin
+  Result := False;
+  if StrToVersion(InstalledVersionText + '.0', ExistingVersion) and StrToVersion('{#AppVersion}.0', NewVersion) then
+    Result := ComparePackedVersion(ExistingVersion, NewVersion) > 0;
+end;
+
+function InstallationSummary: String;
+var
+  VersionText, ActionText: String;
+begin
+  VersionText := InstalledVersionText;
+  if not HasExistingInstall then begin
+    Result := 'New installation: {#AppVersion}';
+    exit;
+  end;
+  if VersionText = '' then VersionText := 'Unknown';
+  if IsNewerInstalled then ActionText := 'Blocked: a newer version is already installed. Downgrades are not supported.'
+  else if VersionText = '{#AppVersion}' then ActionText := 'Reinstall this version to replace program files.'
+  else if VersionText = 'Unknown' then ActionText := 'Replace existing program files. The installed version could not be determined.'
+  else ActionText := 'Upgrade the existing installation.';
+  Result := 'Existing version: ' + VersionText + #13#10 +
+    'Installer version: {#AppVersion}' + #13#10 +
+    'Installation folder: ' + ExpandConstant('{app}') + #13#10#13#10 + ActionText + #13#10#13#10 +
+    'Your config.json and data folder will be preserved. You do not need to uninstall first.';
+end;
+
+procedure InitializeWizard;
+begin
+  ExistingInstallPage := CreateOutputMsgPage(wpSelectDir, 'Existing installation detected',
+    'Review the installed version before continuing.', '');
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = ExistingInstallPage.ID) and not HasExistingInstall;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = ExistingInstallPage.ID then
+    ExistingInstallPage.MsgLabel.Caption := InstallationSummary;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = ExistingInstallPage.ID) and IsNewerInstalled then begin
+    Log(InstallationSummary);
+    SuppressibleMsgBox(InstallationSummary, mbError, MB_OK, IDOK);
+    Result := False;
+  end;
+end;
+
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+begin
+  Result := InstallationSummary + NewLine + NewLine + MemoDirInfo + NewLine + MemoGroupInfo;
+  if MemoTasksInfo <> '' then Result := Result + NewLine + MemoTasksInfo;
+end;
 
 function CreateMutexHandle(Attributes: LongWord; InitialOwner: Boolean; Name: String): LongWord;
   external 'CreateMutexW@kernel32.dll stdcall';
@@ -95,12 +180,11 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  ExistingText: AnsiString;
   PreviousPath: String;
-  ExistingVersion, NewVersion: Int64;
   HostEnabled: Cardinal;
 begin
   Result := '';
+  Log(InstallationSummary);
   if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{609C20B9-0177-4C33-92AB-D5E11347ED72}_is1', 'InstallLocation', PreviousPath) then begin
     if (PreviousPath <> '') and (CompareText(RemoveBackslashUnlessRoot(PreviousPath), RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) <> 0) then begin
       Result := 'Upgrade in the existing installation folder to preserve settings. Uninstall first if you need to move the application.';
@@ -121,13 +205,9 @@ begin
     Result := 'The Windows VBScript feature is required. Enable it before installing this application.';
     exit;
   end;
-  if LoadStringFromFile(ExpandConstant('{app}\VERSION'), ExistingText) then begin
-    if StrToVersion(Trim(String(ExistingText)) + '.0', ExistingVersion) and
-       StrToVersion('{#AppVersion}.0', NewVersion) then
-      if ComparePackedVersion(ExistingVersion, NewVersion) > 0 then begin
-        Result := 'A newer version is already installed. Downgrades are not supported.';
-        exit;
-      end;
+  if IsNewerInstalled then begin
+    Result := InstallationSummary;
+    exit;
   end;
   if not EnterMaintenance then
     Result := 'Close DualScreenWallpaper Settings and wait for wallpaper operations to finish, then retry.';

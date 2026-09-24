@@ -6,6 +6,8 @@ function Convert-Settings($value) {
     $null=Get-WallpaperPosition $value.DisplayMode
     if (!$value.PSObject.Properties['PlaybackOrder']) { $value | Add-Member -NotePropertyName PlaybackOrder -NotePropertyValue 'Random' }
     if ($value.PlaybackOrder -cnotin 'Random','Sequential') { throw 'Unsupported playback order.' }
+    if(!$value.PSObject.Properties['TransitionEffect']){$value | Add-Member -NotePropertyName TransitionEffect -NotePropertyValue 'Instant'}
+    if($value.TransitionEffect -cnotin 'Instant','CrossFade'){throw 'Unsupported transition effect.'}
     if (!$value.PSObject.Properties['SetupCompleted']) {
         $configured=if($value.SchemaVersion -eq 2){@($value.Primary.Roots).Count -gt 0 -and @($value.Secondary.Roots).Count -gt 0}else{@($value.LandscapeRoots).Count -gt 0 -and @($value.PortraitRoots).Count -gt 0}
         $value | Add-Member -NotePropertyName SetupCompleted -NotePropertyValue ([bool]$configured)
@@ -13,7 +15,7 @@ function Convert-Settings($value) {
     if ($value.SchemaVersion -eq 2) { return $value }
     # Preserve the old filters; the user can review the new monitor roles in Settings.
     [pscustomobject]@{
-        SchemaVersion=2; Language=$value.Language; DisplayMode=$value.DisplayMode; PlaybackOrder=$value.PlaybackOrder; SetupCompleted=$value.SetupCompleted
+        SchemaVersion=2; Language=$value.Language; DisplayMode=$value.DisplayMode; PlaybackOrder=$value.PlaybackOrder; SetupCompleted=$value.SetupCompleted; TransitionEffect=$value.TransitionEffect
         Primary=[pscustomobject]@{ Roots=@($value.LandscapeRoots); ExcludeFolders=@(); OrientationEnabled=$false; Orientation='Landscape'; MinResolutionEnabled=$false; MinWidth=1920; MinHeight=1080 }
         Secondary=[pscustomobject]@{ Roots=@($value.PortraitRoots); ExcludeFolders=@(); OrientationEnabled=($value.OnlyPortrait -ne $false); Orientation='Portrait'; MinResolutionEnabled=($value.PortraitMinWidth -gt 0 -or $value.PortraitMinHeight -gt 0); MinWidth=[int]$value.PortraitMinWidth; MinHeight=[int]$value.PortraitMinHeight }
         IntervalMinutes=$value.IntervalMinutes
@@ -45,6 +47,7 @@ function Assert-SettingsFormat($value) {
     if($value.Language -cnotin 'zh-CN','en-US'){throw 'Unsupported language.'}
     $null=Get-WallpaperPosition $value.DisplayMode
     if($value.PlaybackOrder -cnotin 'Random','Sequential'){throw 'Unsupported playback order.'}
+    if($value.TransitionEffect -cnotin 'Instant','CrossFade'){throw 'Unsupported transition effect.'}
     foreach($kind in 'Primary','Secondary') {
         $profile=$value.$kind
         if($profile -isnot [pscustomobject]){throw "Missing profile: $kind"}

@@ -13,6 +13,7 @@ New-Item -ItemType Directory -Path $data -Force | Out-Null
 if ($UiLog) { Start-Transcript -LiteralPath (Join-Path $data 'ui-output.log') -Force | Out-Null }
 Add-Type -Path (Join-Path $root 'Desktop.cs')
 . (Join-Path $PSScriptRoot 'ImageProcessing.ps1')
+. (Join-Path $PSScriptRoot 'Transition.ps1')
 Add-Type -AssemblyName PresentationCore,WindowsBase
 
 function Build-Index {
@@ -55,6 +56,7 @@ function Run-Wallpaper {
         $statePath = Join-Path $data 'state.json'
         $previous = @{}
         if (Test-Path -LiteralPath $statePath) { (Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $previous[$_.Name]=$_.Value } }
+        $oldPosition=$desktop.GetPosition()
         $desktop.SetPosition((Get-WallpaperPosition $config.DisplayMode))
         foreach ($monitor in $monitors) {
             $pool = @(Get-PlaybackCandidates @($index.Images.($monitor.Kind)) $previous[$monitor.Id].Source $config.PlaybackOrder)
@@ -68,7 +70,7 @@ function Run-Wallpaper {
                     try { $key = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').Substring(0,16) } finally { $sha.Dispose() }
                     $output = Join-Path $data "$key-$slot.jpg"
                     Convert-Wallpaper $source $output
-                    $desktop.SetWallpaper($monitor.Id,$output)
+                    Set-WallpaperWithTransition $desktop $monitor $output $config.DisplayMode $config.TransitionEffect $oldPosition (Join-Path $data $key)
                     $previous[$monitor.Id] = @{Source=$source; Slot=$slot}
                     $previous | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath ($statePath+'.tmp') -Encoding UTF8
                     Move-Item -LiteralPath ($statePath+'.tmp') -Destination $statePath -Force

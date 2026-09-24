@@ -80,11 +80,14 @@ function Show-SetupWizard($owner,$initial,[string]$CaptureDirectory,$Environment
     $display=[Windows.Forms.ComboBox]::new(); $display.DropDownStyle='DropDownList'; $display.SetBounds(180,154,545,28)
     foreach($key in @('填充（等比铺满，裁剪边缘）','适应（完整显示，可能留边）','拉伸（铺满，可能变形）','居中（原始尺寸，可能裁剪）','平铺（原始尺寸，重复排列）')){[void]$display.Items.Add((Get-UiText $key))}
     $display.SelectedIndex=[Array]::IndexOf($displayModes,$settings.DisplayMode); $finish.Controls.Add($display)
-    $preview=Button (Get-UiText '壁纸预览…') 16 204 180 {
+    Label (Get-UiText '切换效果') 16 199 130 $finish
+    $transition=[Windows.Forms.ComboBox]::new();$transition.DropDownStyle='DropDownList';$transition.SetBounds(180,196,545,28)
+    $transition.Items.AddRange(@((Get-UiText '直接切换'),(Get-UiText '淡入淡出')));$transition.SelectedIndex=$(if($settings.TransitionEffect -eq 'CrossFade'){1}else{0});$finish.Controls.Add($transition)
+    $preview=Button (Get-UiText '壁纸预览…') 16 238 180 {
         try {$chosen=Show-WallpaperPreview $form $displayModes[$display.SelectedIndex]; if($chosen){$display.SelectedIndex=[Array]::IndexOf($displayModes,$chosen)}} catch {$errorLabel.Text=[string]$_}
     } $finish
-    Label (Get-UiText '完成后保存设置、扫描图库并应用；大图库扫描可能需要几分钟。') 16 256 710 $finish
-    Label (Get-UiText '取消引导不会保存修改，也不会改变壁纸或轮播任务。') 16 294 710 $finish
+    Label (Get-UiText '完成后保存设置、扫描图库并应用；大图库扫描可能需要几分钟。') 16 284 710 $finish
+    Label (Get-UiText '取消引导不会保存修改，也不会改变壁纸或轮播任务。') 16 322 710 $finish
     $errorLabel=[Windows.Forms.Label]::new(); $errorLabel.ForeColor=[Drawing.Color]::DarkRed; $errorLabel.SetBounds(16,443,756,53); $form.Controls.Add($errorLabel)
     $back=Button (Get-UiText '上一步') 16 509 145 {$tabs.SelectedIndex=[Math]::Max(0,$tabs.SelectedIndex-1)}
     $next=Button (Get-UiText '下一步') 455 509 150 {

@@ -1,7 +1,7 @@
 ﻿# Invoked by Settings.ps1 -SmokeTest in its isolated test scope.
 
     if($primary.Roots.Text -ne (@($c.Primary.Roots) -join "`r`n") -or $secondary.Roots.Text -ne (@($c.Secondary.Roots) -join "`r`n")){throw 'Folder controls do not match configuration'}
-    if($script:buttons.Count -ne 12){throw 'Missing controls'}
+    if($script:buttons.Count -ne 13){throw 'Missing controls'}
     # Exercise independent controls and persistence without touching the user's config.
     $originalRoot=$script:root; $originalConfigPath=$script:configPath
     $testRoot=Join-Path $originalRoot ('data\ui-test-'+[Guid]::NewGuid().ToString('N'))
@@ -47,13 +47,16 @@
         if($saved.Language -ne 'en-US' -or $saved.SchemaVersion -ne 2 -or $saved.Primary.MinWidth -ne 1234 -or $saved.Primary.MinResolutionEnabled -or $saved.Primary.ExcludeFolders.Count -ne 1 -or $saved.Secondary.ExcludeFolders.Count -ne 0){throw 'Settings did not round-trip'}
         if($rawConfig.SchemaVersion -ne 2 -and !(Get-ChildItem -LiteralPath (Join-Path $testRoot 'data') -Filter 'config-v1-*.json')){throw 'Legacy backup missing'}
         $order.SelectedIndex=1
+        $transition.SelectedIndex=1
         $exportPath=Join-Path $testRoot 'export.json'
         Export-Settings $exportPath
         $exported=Read-SettingsFile $exportPath
+        if($exported.TransitionEffect -ne 'CrossFade'){throw 'Transition effect did not export'}
         if($exported.PlaybackOrder -ne 'Sequential' -or $exported.Primary.MinWidth -ne 1234){throw 'Export did not include unsaved edits'}
         $beforeImport=[IO.File]::ReadAllText($script:configPath)
         $order.SelectedIndex=0; $primary.MinWidth.Value=777
         Import-Settings $exportPath
+        if($transition.SelectedIndex -ne 1){throw 'Transition effect did not import'}
         if($order.SelectedIndex -ne 1 -or $primary.MinWidth.Value -ne 1234 -or [IO.File]::ReadAllText($script:configPath) -ne $beforeImport){throw 'Import failed to stage edits without persisting'}
         $language.SelectedIndex=0
         if([IO.File]::ReadAllText($script:configPath) -ne $beforeImport){throw 'Staged language change overwrote active configuration'}
@@ -92,6 +95,7 @@
         $primary.MinHeight.Value=$c.Primary.MinHeight
         $display.SelectedIndex=[Array]::IndexOf($displayModes,$c.DisplayMode)
         $order.SelectedIndex=$(if($c.PlaybackOrder -eq 'Sequential'){1}else{0})
+        $transition.SelectedIndex=$(if($c.TransitionEffect -eq 'CrossFade'){1}else{0})
         $primary.MinResolutionEnabled.Checked=$c.Primary.MinResolutionEnabled; $secondary.MinResolutionEnabled.Checked=$c.Secondary.MinResolutionEnabled
         $primary.OrientationEnabled.Checked=$c.Primary.OrientationEnabled; $secondary.OrientationEnabled.Checked=$c.Secondary.OrientationEnabled
     }
