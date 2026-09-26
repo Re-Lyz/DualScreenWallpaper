@@ -6,7 +6,7 @@ if(!$ApplicationPath){$ApplicationPath=Join-Path $repo 'dist\csharp-v2\DualScree
 $job=Join-Path $repo ('data\desktop-validation-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path (Join-Path $job 'data') -Force | Out-Null
 Add-Type -AssemblyName System.Drawing
-Add-Type -Path (Join-Path $repo 'Desktop.cs')
+Add-Type -Path (Join-Path $PSScriptRoot 'DualScreenWallpaper.Windows\Desktop.cs')
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class PixelProbe { [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr window); [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr window, IntPtr dc); [DllImport("gdi32.dll")] public static extern uint GetPixel(IntPtr dc,int x,int y); }'
 foreach($name in @('red','blue')){
     $bmp=New-Object Drawing.Bitmap 64,64;$graphics=[Drawing.Graphics]::FromImage($bmp)

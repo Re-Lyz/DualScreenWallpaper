@@ -1,6 +1,6 @@
 # DualScreenWallpaper 2.0 · C# 候选版
 
-应用的设置界面、图片扫描与解码、壁纸处理、计划任务、配置迁移和在线更新已迁移到 C# / .NET 10。运行应用不再依赖 PowerShell 或 VBScript；构建与测试脚本仍使用 PowerShell。根目录保留 1.4.0 维护代码，`src/VERSION` 管理新实现的版本；2.0 尚未发布 GitHub Release，已完成本机原位升级与安装后界面检查。
+应用的设置界面、图片扫描与解码、壁纸处理、计划任务、配置迁移和在线更新已迁移到 C# / .NET 10。运行应用不再依赖 PowerShell 或 VBScript；构建与测试脚本仍使用 PowerShell。`legacy/v1.4.0/` 归档 1.4.0 维护代码；新版不依赖该目录，`src/VERSION` 管理新实现的版本；2.0 尚未发布 GitHub Release，已完成本机原位升级与安装后界面检查。
 
 **淡入淡出的桌面背景层新实现仍待用户手动验收。** 旧的逐帧 SetWallpaper 方案在实际双屏采样中未能证明可见过渡，不能以接口成功代替视觉验收。用户要求暂停改变真实桌面的测试，因此这一项仍未勾选。
 
@@ -67,7 +67,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./Test-Preview.ps1 -Appl
 ## 代码结构
 
 - Core：配置、原子存储、图片来源扫描、过滤、播放顺序。
-- Windows：复用 C# COM 接口与图像头解析，WPF 解码、EXIF、渲染。
+- Windows：包含 C# COM 接口与图像头解析，WPF 解码、EXIF、渲染。
 - App：可缩放 WinForms 设置、预览和引导、工作进程、原生任务、临时桌面过渡层、更新与恢复。
 - Tests：无外部测试框架的配置回归运行器。
 

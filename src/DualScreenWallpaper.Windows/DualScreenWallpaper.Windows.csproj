@@ -7,8 +7,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../Desktop.cs" Link="Desktop.cs" />
-    <Compile Include="../../ImageHeader.cs" Link="ImageHeader.cs" />
     <ProjectReference Include="../DualScreenWallpaper.Core/DualScreenWallpaper.Core.csproj" />
   </ItemGroup>
 </Project>
