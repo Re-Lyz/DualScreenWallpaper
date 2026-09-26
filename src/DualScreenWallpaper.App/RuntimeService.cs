@@ -39,7 +39,12 @@ internal sealed class RuntimeService(string root, Action<string> log)
         try
         {
             if (MaintenanceActive() && operation != "uninstall") throw new InvalidOperationException("Installation or update is in progress.");
-            if (operation is "stop" or "uninstall")
+            if (operation == "stop")
+            {
+                SlideshowLifecycle.Stop(Config, () => ScheduledSlideshow.RemoveOwned(Root, log), Restore);
+                return;
+            }
+            if (operation == "uninstall")
             {
                 if (ScheduledSlideshow.RemoveOwned(Root, log)) Restore();
                 return;

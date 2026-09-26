@@ -8,7 +8,6 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AssemblyName>DualScreenWallpaper</AssemblyName>
-    <Version>2.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DualScreenWallpaper.Core/DualScreenWallpaper.Core.csproj" />

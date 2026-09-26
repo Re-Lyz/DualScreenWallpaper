@@ -26,6 +26,8 @@ Windows 多屏独立壁纸轮播。当前开发版本为 C# / .NET 10 的 2.0 �
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Build.ps1 -Installer
 ```
 
-构建后运行 `dist/csharp-v2-standalone/DualScreenWallpaper.exe`。自带运行时的安装版和便携版无需另外安装 .NET；精简便携版需要 .NET Desktop Runtime 10 x64。
+构建后从 `dist/` 的 ZIP 解压运行 `DualScreenWallpaper.exe`，或使用构建输出的独立 staging 目录。自带运行时的安装版和便携版无需另外安装 .NET；精简便携版需要 .NET Desktop Runtime 10 x64。
+
+当前源码版本见 `src/VERSION`（2.0.1 修复候选）；本机安装仍为 2.0.0。`src/Test.ps1` 运行配置、隔离集成和屏幕外界面测试；GitHub 工作流运行不修改桌面的回归与精简包构建。
 
 源码目录中的个人 `config.json`、`data/` 和现有 `dist/` 未随工程归档移动；已安装的应用也不受目录整理影响。

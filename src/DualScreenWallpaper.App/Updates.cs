@@ -15,7 +15,7 @@ internal sealed record UpdateBackup(string Root, string[] Files, string[] Added)
 
 internal static class Updates
 {
-    public const string CurrentVersion = "2.0.0";
+    public static string CurrentVersion => typeof(Updates).Assembly.GetName().Version!.ToString(3);
     private const string Repo = "https://github.com/Re-Lyz/DualScreenWallpaper";
     private static readonly string[] Hosts = ["api.github.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"];
     public static bool IsInstalled(string root)

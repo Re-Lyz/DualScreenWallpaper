@@ -1,16 +1,19 @@
 #ifndef StageDir
   #error StageDir is required
 #endif
+#ifndef AppVersion
+  #error AppVersion is required; build through Build.ps1
+#endif
 #ifndef AppGuid
   #define AppGuid "{609C20B9-0177-4C33-92AB-D5E11347ED72}"
 #endif
 #ifndef OutputName
-  #define OutputName "DualScreenWallpaper-2.0.0-Setup"
+  #define OutputName "DualScreenWallpaper-" + AppVersion + "-Setup"
 #endif
 [Setup]
 AppId={{#AppGuid}
 AppName=DualScreenWallpaper
-AppVersion=2.0.0
+AppVersion={#AppVersion}
 AppPublisher=DualScreenWallpaper
 DefaultDirName={localappdata}\Programs\DualScreenWallpaper
 DefaultGroupName=DualScreenWallpaper
@@ -73,7 +76,7 @@ begin
 end;
 function Summary: String;
 begin
-  Result := 'Target version: 2.0.0' + #13#10 + 'Existing version: ' + PreviousVersion + #13#10 + ExpandConstant('{app}') + #13#10#13#10 + 'Saved configuration and data are preserved. C# replaces the PowerShell/VBScript runtime. Existing slideshow tasks are migrated to the executable.';
+  Result := 'Target version: {#AppVersion}' + #13#10 + 'Existing version: ' + PreviousVersion + #13#10 + ExpandConstant('{app}') + #13#10#13#10 + 'Saved configuration and data are preserved. C# replaces the PowerShell/VBScript runtime. Existing slideshow tasks are migrated to the executable.';
 end;
 procedure InitializeWizard;
 begin
@@ -91,7 +94,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Old, New: Int64; PreviousPath: String;
 begin
   Result := '';
-  if StrToVersion(PreviousVersion + '.0', Old) and StrToVersion('2.0.0.0', New) then
+  if StrToVersion(PreviousVersion + '.0', Old) and StrToVersion('{#AppVersion}.0', New) then
     if ComparePackedVersion(Old, New) > 0 then begin Result := 'A newer version is already installed. Downgrade is blocked.'; exit; end;
   if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppGuid}_is1', 'InstallLocation', PreviousPath) then
     if CompareText(RemoveBackslashUnlessRoot(PreviousPath), RemoveBackslashUnlessRoot(ExpandConstant('{app}'))) <> 0 then begin Result := 'Upgrade in the existing installation folder.'; exit; end;

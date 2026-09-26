@@ -2,7 +2,8 @@
 param([string]$InstallerPath)
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot
-if(!$InstallerPath){$InstallerPath=Join-Path $repo 'data\csharp-installer-validation\DualScreenWallpaper-2.0.0-TestSetup.exe'}
+$version=(Get-Content (Join-Path $PSScriptRoot 'VERSION') -Raw).Trim()
+if(!$InstallerPath){$InstallerPath=Join-Path $repo "dist\DualScreenWallpaper-$version-TestSetup.exe"}
 $key='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{B695E6E3-CEAA-4D45-B76D-C329785803A8}_is1'
 if(Test-Path $key){throw 'A test installation already exists; inspect it before running again.'}
 $job=Join-Path $repo ('data\csharp-install-test-'+[Guid]::NewGuid().ToString('N'))
@@ -20,7 +21,7 @@ try {
     foreach($attempt in 1..2){
         $p=Start-Process -FilePath $InstallerPath -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
         if($p.ExitCode -ne 0){throw "Install/reinstall failed: $($p.ExitCode)"}
-        if((Get-Content (Join-Path $root 'VERSION') -Raw).Trim() -ne '2.0.0'){throw 'Wrong installed version.'}
+        if((Get-Content (Join-Path $root 'VERSION') -Raw).Trim() -ne $version){throw 'Wrong installed version.'}
         if((Get-FileHash (Join-Path $root 'config.json')).Hash -ne $hash){throw 'Installer changed configuration.'}
     }
     if(!(Test-Path $key)){throw 'Missing test uninstall registration.'}
@@ -30,7 +31,7 @@ try {
     Set-Content (Join-Path $root 'VERSION') '9.0.0' -Encoding ASCII
     $p=Start-Process -FilePath $InstallerPath -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
     if($p.ExitCode -eq 0){throw 'Installer allowed a downgrade.'}
-    Set-Content (Join-Path $root 'VERSION') '2.0.0' -Encoding ASCII
+    Set-Content (Join-Path $root 'VERSION') $version -Encoding ASCII
 }finally{
     $uninstaller=Join-Path $root 'unins000.exe'
     if(Test-Path $uninstaller){$p=Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait -WindowStyle Hidden;if($p.ExitCode -ne 0){throw 'Test uninstall failed.'}}

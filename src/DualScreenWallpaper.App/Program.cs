@@ -36,6 +36,7 @@ internal static class Program
                     case "--restore": restore = true; break;
                     case "--no-restart": restart = false; automated = true; break;
                     case "--check-update": operation = "check-update"; automated = true; break;
+                    case "--task-status": operation = "task-status"; automated = true; break;
                     case "--ui-scale" when i + 1 < args.Length: uiScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                     default: throw new ArgumentException("Usage: [--config absolute-path] [--smoke --report output.json]");
                 }
@@ -58,6 +59,14 @@ internal static class Program
                 return 0;
             }
             if (operation == "self-test") { IntegrationTests.Run(report ?? throw new ArgumentException("--self-test requires --report")); return 0; }
+            if (operation == "task-status")
+            {
+                var snapshot = ScheduledSlideshow.ReadStatus(root);
+                bool enabled = File.Exists(Path.Combine(root, "config.json")) && SettingsReader.Load(Path.Combine(root, "config.json")).AutoStart;
+                using var output = new FileStream(report ?? throw new ArgumentException("--task-status requires --report"), FileMode.CreateNew);
+                JsonSerializer.Serialize(output, new { Task = snapshot, SavedAutoStart = enabled });
+                return 0;
+            }
             if (operation is not null)
             {
                 string logs = Path.Combine(root, "data"); Directory.CreateDirectory(logs);

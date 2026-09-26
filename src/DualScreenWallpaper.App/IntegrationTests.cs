@@ -78,6 +78,30 @@ internal static class IntegrationTests
             }
             catch (IOException) { failed = true; }
             Check(failed && File.ReadAllText(Path.Combine(app, "VERSION")) == "2.0.0" && !File.Exists(Path.Combine(app, "DualScreenWallpaper.exe")), "Partial update did not roll back.");
+            string stopConfig = Path.Combine(temp, "stop-config.json");
+            var runningSettings = settings with { AutoStart = true };
+            Storage.SaveSettings(stopConfig, runningSettings);
+            bool removed = false, restored = false;
+            SlideshowLifecycle.Stop(stopConfig, () => { removed = true; return true; }, () => restored = true);
+            var stopped = SettingsReader.Load(stopConfig);
+            Check(removed && restored && !stopped.AutoStart, "Stop did not persist the disabled setting.");
+            Check(SettingsReader.Serialize(stopped with { AutoStart = true }) == SettingsReader.Serialize(runningSettings), "Stop changed unrelated settings.");
+            Check(Directory.GetFiles(temp, "stop-config.json.backup-*.json").Any(p => SettingsReader.Load(p).AutoStart), "Stop did not back up the enabled setting.");
+            Storage.SaveSettings(stopConfig, runningSettings); restored = false;
+            try { SlideshowLifecycle.Stop(stopConfig, () => false, () => restored = true); }
+            catch (IOException) { }
+            Check(!restored && !SettingsReader.Load(stopConfig).AutoStart, "Foreign task stop changed wallpaper or left restart enabled.");
+            Storage.SaveSettings(stopConfig, runningSettings);
+            try { SlideshowLifecycle.Stop(stopConfig, () => throw new IOException("Injected scheduler failure"), () => restored = true); }
+            catch (IOException) { }
+            Check(!restored && !SettingsReader.Load(stopConfig).AutoStart, "Task failure left upgrade restart enabled.");
+            File.WriteAllText(stopConfig, "invalid"); removed = false;
+            try { SlideshowLifecycle.Stop(stopConfig, () => { removed = true; return true; }, () => restored = true); }
+            catch (JsonException) { }
+            Check(!removed && !restored, "Invalid configuration caused partial stop mutations.");
+            Check(new SlideshowStatus(false, false, false, false).Describe(true, false).Contains("不一致"), "Missing task mismatch not reported.");
+            Check(new SlideshowStatus(true, true, true, false, DateTime.Now, DateTime.Now.AddMinutes(1)).Describe(true, true).Contains("Success"), "Task result not displayed.");
+            Check(new SlideshowStatus(true, false, true, false).Describe(true, true).Contains("another installation"), "Foreign task state not displayed.");
             string release = JsonSerializer.Serialize(new { tag_name = "v2.1.0", draft = false, prerelease = false, body = "notes", assets = new[] { new { name = "DualScreenWallpaper-2.1.0.zip", browser_download_url = "https://github.com/Re-Lyz/DualScreenWallpaper/releases/download/v2.1.0/DualScreenWallpaper-2.1.0.zip", size = 1, digest = "sha256:" + new string('0', 64) } } });
             Check(Updates.ParseRelease(release, false).Version == "2.1.0", "Release parsing failed.");
             Reject(() => Updates.ParseRelease(release.Replace("github.com", "evil.example"), false));

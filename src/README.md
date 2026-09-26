@@ -1,8 +1,10 @@
-# DualScreenWallpaper 2.0 · C# 候选版
+# DualScreenWallpaper C# 候选版
 
 应用的设置界面、图片扫描与解码、壁纸处理、计划任务、配置迁移和在线更新已迁移到 C# / .NET 10。运行应用不再依赖 PowerShell 或 VBScript；构建与测试脚本仍使用 PowerShell。`legacy/v1.4.0/` 归档 1.4.0 维护代码；新版不依赖该目录，`src/VERSION` 管理新实现的版本；2.0 尚未发布 GitHub Release，已完成本机原位升级与安装后界面检查。
 
 **淡入淡出的桌面背景层新实现仍待用户手动验收。** 旧的逐帧 SetWallpaper 方案在实际双屏采样中未能证明可见过渡，不能以接口成功代替视觉验收。用户要求暂停改变真实桌面的测试，因此这一项仍未勾选。
+
+当前源码为 2.0.1 修复候选，本机安装仍为 2.0.0。本轮新增停止状态持久化和只读任务状态显示，尚未替换安装版。
 
 ## 使用与界面
 
@@ -14,7 +16,7 @@
 
 播放顺序与效果分开设置。顺序播放按文件名、完整路径排序并记录成功播放位置；随机播放优先避开上一张。支持填充、适应、拉伸、居中和平铺。预览显示实际屏幕布局，可逐屏选择示例图片，调整显示方式后回填到设置；示例图片不自动加入图库。
 
-“保存并应用”保存配置、按需扫描、换图，并根据自动轮播开关管理计划任务。“刷新索引”保存并扫描；“立即换图”使用已保存配置；“停止并恢复”移除属于本目录的任务并恢复可用的原静态壁纸。日志会说明错误与切换回退原因。关闭设置不会停止自动轮播；没有常驻后台服务。多个副本仍共用 `DualScreenWallpaper-1Minute` 任务，请勿同时让不同副本接管轮播。
+“保存并应用”保存配置、按需扫描、换图，并根据自动轮播开关管理计划任务。“刷新索引”保存并扫描；“立即换图”使用已保存配置；“停止并恢复”移除属于本目录的任务并恢复可用的原静态壁纸。日志会说明错误与切换回退原因。设置顶部每 15 秒刷新实际任务状态、上次结果及下次执行时间；与已保存开关不一致时会提示。“停止并恢复”先保存关闭状态，再删除本目录的任务并恢复壁纸，其他未保存编辑保留在界面中。关闭设置不会停止自动轮播；没有常驻后台服务。多个副本仍共用 `DualScreenWallpaper-1Minute` 任务，请勿同时让不同副本接管轮播。
 
 ## 配置与迁移
 
@@ -51,13 +53,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\src\Build.ps1 -Framewo
 
 独立安装版/便携版包含运行时，解压约 154 MiB；依赖运行时版程序文件不到 1 MiB，但不含运行时成本，不能把两种体积直接比较。相比继续使用 PowerShell，C# 更便于复用当前 Windows/.NET 逻辑；本次没有实现 Rust 原型，不声称比 Rust 更快或更小。
 
+每次构建使用新的 staging 子目录；同名包存在时在编译前拒绝覆盖，可通过 `-OutputDirectory` 指定另一目录，Inno 可由 `-CompilerPath` 指定。版本只维护 `src/VERSION`，程序集、更新器和安装器共同使用。打包完成生成 `.sha256` 校验文件。
+
 ## 验证
 
 ```powershell
-# 在 src 目录使用 .NET 10 SDK
-dotnet run --project DualScreenWallpaper.Tests -c Release
-../dist/csharp-v2-standalone/DualScreenWallpaper.exe --self-test --report ../data/new-integration-report.json
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./Test-Preview.ps1 -ApplicationPath ../dist/csharp-v2-standalone/DualScreenWallpaper.exe
+# 在仓库根目录运行；可使用 -DotnetPath 指定 SDK
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./src/Test.ps1
 ```
 
 `--self-test` 覆盖解码、EXIF、混合来源、独立屏幕配置、排序、备份、更新包防护与恢复，不修改壁纸或任务。`Test-Preview.ps1` 在屏幕外测试多次启动、重复预览、窗口缩放、非法配置、报告覆盖保护；截图可能含个人路径，应留在忽略的 data 目录。`Test-Installer.ps1` 使用独立测试 AppId 测试安装、重装、降级阻止和卸载，不替换现有安装。`Test-Desktop.ps1` 会短暂改变真实壁纸，**当前不再自动执行**。
@@ -72,3 +74,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./Test-Preview.ps1 -Appl
 - Tests：无外部测试框架的配置回归运行器。
 
 `--run`、`--apply`、`--index`、`--stop`、`--migrate-task`、`--uninstall` 为工作模式；`--root` 指定工作目录。默认无参数打开设置。`--config` 仅指定初始载入文件，保存目标仍为工作目录下的 config.json。
+
+2.0.1 新增 9 项停止流程与任务状态断言，集成断言总数 41。`Test.ps1 -SkipUi` 用于 CI；工作流不执行安装或真实桌面测试。`--task-status --root <安装目录> --report <新报告路径>` 只读输出任务状态与已保存开关。

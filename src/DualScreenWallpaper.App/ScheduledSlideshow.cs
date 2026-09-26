@@ -8,6 +8,30 @@ namespace DualScreenWallpaper.App;
 internal static class ScheduledSlideshow
 {
     internal const string Name = "DualScreenWallpaper-1Minute";
+    private static bool Missing(Exception ex) => (ex is COMException or FileNotFoundException) && (uint)ex.HResult == 0x80070002;
+    internal static SlideshowStatus ReadStatus(string root)
+    {
+        dynamic service = Connect();
+        try
+        {
+            dynamic folder = service.GetFolder("\\");
+            try
+            {
+                dynamic task;
+                try { task = folder.GetTask(Name); }
+                catch (Exception ex) when (Missing(ex)) { return new(false, false, false, false); }
+                try
+                {
+                    DateTime last = task.LastRunTime, next = task.NextRunTime;
+                    return new(true, Owns((string)task.Xml, root), (bool)task.Enabled, (int)task.State == 4,
+                        last.Year > 1900 ? last : null, next.Year > 1900 ? next : null, (int)task.LastTaskResult);
+                }
+                finally { Marshal.FinalReleaseComObject(task); }
+            }
+            finally { Marshal.FinalReleaseComObject(folder); }
+        }
+        finally { Marshal.FinalReleaseComObject(service); }
+    }
     private static dynamic Connect()
     {
         dynamic service = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service")!)!;
@@ -43,6 +67,8 @@ internal static class ScheduledSlideshow
     }
     public static void Register(string root, int minutes)
     {
+        var existing = ReadStatus(root);
+        if (existing.Exists && !existing.Owned) throw new IOException("Another installation owns the slideshow task. Stop it from that installation first.");
         string exe = Path.Combine(root, "DualScreenWallpaper.exe");
         if (!File.Exists(exe)) throw new FileNotFoundException("Publish the application before enabling slideshow.", exe);
         string user = SecurityElement.Escape(WindowsIdentity.GetCurrent().Name)!;

@@ -11,7 +11,9 @@ The current application lives under `src/`. The PowerShell/VBScript 1.4.0 applic
 
 The Windows project owns its copies of `Desktop.cs` and `ImageHeader.cs`; archived copies remain with the old application for maintenance. Core has no UI or COM dependency. Monitor settings use device IDs with Primary/Secondary defaults. UI operations dispatch WPF/COM work to STA threads. Task Scheduler invokes the compiled executable; no permanent slideshow process is required.
 
-`src/Build.ps1` uses `src/VERSION`, the root example configuration and `src/README.md`. It writes to `dist/`, validates package entries and optionally invokes `src/Installer.iss`. Development tools, reports and backups stay in ignored `data/`. The old build scripts use paths relative to the archive and accept an explicit compiler path where needed.
+`src/Build.ps1` uses `src/VERSION`, the root example configuration and `src/README.md`. `Directory.Build.props` supplies assembly versions; the updater reads the assembly version, and the build passes it to Inno Setup. Each build uses a fresh staging directory and rejects existing output before publishing. It writes packages and SHA-256 files to `dist/` or a specified output directory. Development tools, reports and backups stay in ignored `data/`. The old build scripts use paths relative to the archive and accept an explicit compiler path where needed.
+
+Explicit stop persists AutoStart=false with a backup before removing the owned task and restoring wallpaper. Uninstall remains independent of configuration parsing. UI task status is refreshed read-only every 15 seconds, including configuration/task mismatches. Task creation refuses to overwrite another installation's task. Lifecycle regression uses injected task/removal callbacks; it does not touch the user's desktop or scheduled task.
 
 The updater verifies release source, size and SHA-256, rejects unsafe ZIP entries, backs up files and coordinates changes with maintenance/worker locks. Installed upgrades preserve configuration and data. Portable update failures restore previous files. Schema 2 settings migrate on save; the old image index is not yet converted to `index-v3.json`.
 

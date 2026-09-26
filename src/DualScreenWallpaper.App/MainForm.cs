@@ -9,6 +9,12 @@ internal sealed class MainForm : Form
     private readonly TextBox sources = PathsBox(), exclusions = PathsBox();
     private readonly TextBox log = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Dock = DockStyle.Fill };
     private readonly Label status = new() { AutoSize = true, Dock = DockStyle.Fill };
+    private readonly Label taskStatus = new() { AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(3, 2, 3, 8) };
+    private readonly System.Windows.Forms.Timer taskTimer = new() { Interval = 15000 };
+    private bool readingTask;
+    private SlideshowStatus? taskSnapshot;
+    private bool savedAutoStart;
+    private string? taskError;
     private readonly CheckBox independent = new() { AutoSize = true }, orientationEnabled = new() { AutoSize = true }, minimumEnabled = new() { AutoSize = true }, auto = new() { AutoSize = true };
     private readonly ComboBox orientation = Choice("Landscape", "Portrait"), display = Choice("Fill", "Fit", "Stretch", "Center", "Tile"), order = Choice("Random", "Sequential"), transition = Choice("Instant", "CrossFade"), language = Choice("简体中文", "English");
     private readonly NumericUpDown width = Number(0, 100000), height = Number(0, 100000), interval = Number(1, 1440);
@@ -37,13 +43,13 @@ internal sealed class MainForm : Form
         AutoScaleDimensions = new SizeF(96, 96); AutoScaleMode = AutoScaleMode.Dpi;
         Text = "DualScreenWallpaper v" + Updates.CurrentVersion; Font = new Font("Microsoft YaHei UI", 10);
         ClientSize = new Size(1000, 780); MinimumSize = new Size(820, 660); StartPosition = FormStartPosition.CenterScreen;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 4 };
-        layout.RowStyles.Add(new(SizeType.AutoSize)); layout.RowStyles.Add(new(SizeType.Percent, 100));
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 5 };
+        layout.RowStyles.Add(new(SizeType.AutoSize)); layout.RowStyles.Add(new(SizeType.AutoSize)); layout.RowStyles.Add(new(SizeType.Percent, 100));
         layout.RowStyles.Add(new(SizeType.AutoSize)); layout.RowStyles.Add(new(SizeType.AutoSize));
         var header = Flow(); header.Controls.Add(L("双屏壁纸", "DualScreenWallpaper")); header.Controls.Add(language);
         header.Controls.Add(Button("首次引导", "Setup wizard", ShowWizard));
         header.Controls.Add(Button("检查更新", "Check updates", ShowUpdates));
-        layout.Controls.Add(header); layout.Controls.Add(split);
+        layout.Controls.Add(header); layout.Controls.Add(taskStatus); layout.Controls.Add(split);
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         editor = body;
         body.ColumnStyles.Add(new(SizeType.Percent, 27)); body.ColumnStyles.Add(new(SizeType.Percent, 73));
@@ -100,6 +106,9 @@ internal sealed class MainForm : Form
         LoadedConfiguration = config is not null || File.Exists(Path.Combine(root, "config.json"));
         FormClosing += (_, e) => { if (busy) { cancellation?.Cancel(); e.Cancel = true; return; } if (dirty && !IsSmoke && MessageBox.Show(this, English ? "Discard unsaved changes?" : "放弃未保存的修改？", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) e.Cancel = true; };
         Shown += (_, _) => { split.SplitterDistance = split.Height * 2 / 3; if (!settings.SetupCompleted && !IsSmoke) ShowWizard(); };
+        Shown += async (_, _) => { if (!IsSmoke) { taskTimer.Start(); await RefreshTaskStatus(); } };
+        taskTimer.Tick += async (_, _) => { if (!busy) await RefreshTaskStatus(); };
+        FormClosed += (_, _) => taskTimer.Dispose();
     }
     private static TextBox PathsBox() => new() { Multiline = true, ScrollBars = ScrollBars.Both, WordWrap = false, Dock = DockStyle.Fill };
     private static NumericUpDown Number(int min, int max) => new() { Minimum = min, Maximum = max, Width = 100 };
@@ -127,6 +136,23 @@ internal sealed class MainForm : Form
                 (English ? "Disconnected profile " : "未连接屏幕配置 ") + (i - 1);
         }
         loading = previous;
+        RenderTaskStatus();
+    }
+    private void RenderTaskStatus() => taskStatus.Text = taskError is not null
+        ? (English ? "Cannot read slideshow task: " : "无法读取轮播任务：") + taskError
+        : taskSnapshot?.Describe(savedAutoStart, English) ?? (English ? "Reading slideshow task…" : "正在读取轮播任务…");
+    private async Task RefreshTaskStatus()
+    {
+        if (readingTask || IsDisposed) return;
+        readingTask = true;
+        try
+        {
+            var snapshot = await RuntimeService.OnSta(() =>
+                (Task: ScheduledSlideshow.ReadStatus(root), AutoStart: File.Exists(Path.Combine(root, "config.json")) && SettingsReader.Load(Path.Combine(root, "config.json")).AutoStart));
+            taskSnapshot = snapshot.Task; savedAutoStart = snapshot.AutoStart; taskError = null;
+        }
+        catch (Exception ex) { taskError = ex.Message; }
+        finally { readingTask = false; if (!IsDisposed) RenderTaskStatus(); }
     }
     private void Append(string message)
     {
@@ -203,7 +229,22 @@ internal sealed class MainForm : Form
         }
         catch (OperationCanceledException) { Append("已取消 / Cancelled"); }
         catch (Exception ex) { Error(ex); }
-        finally { cancellation?.Dispose(); cancellation = null; busy = false; SetBusy(false); }
+        finally
+        {
+            if (operation == "stop")
+            {
+                // Preserve other unsaved edits, but reflect the persisted stop even if restoration failed.
+                try
+                {
+                    bool enabled = File.Exists(Path.Combine(root, "config.json")) && SettingsReader.Load(Path.Combine(root, "config.json")).AutoStart;
+                    bool previous = loading; loading = true; auto.Checked = enabled; loading = previous;
+                    settings = settings with { AutoStart = enabled };
+                }
+                catch (Exception ex) { Append(ex.Message); }
+            }
+            cancellation?.Dispose(); cancellation = null; busy = false; SetBusy(false);
+            if (!IsSmoke) await RefreshTaskStatus();
+        }
     }
     private void SetBusy(bool value) { foreach (var control in mutating) control.Enabled = !value; if (editor is not null) editor.Enabled = !value; monitors.Enabled = language.Enabled = !value; if (!value) ShowProfile(); }
     private void OpenPreview(bool smoke)
@@ -223,6 +264,9 @@ internal sealed class MainForm : Form
     public void ValidateLoadedState()
     {
         _ = ReadSettings();
+        taskSnapshot = new(true, true, true, false, DateTime.Now, DateTime.Now.AddMinutes(1));
+        savedAutoStart = true; RenderTaskStatus();
+        if (!taskStatus.Text.Contains('\n')) throw new InvalidOperationException("Task status details missing.");
         if (language.SelectedIndex < 0 || string.IsNullOrWhiteSpace(language.Text)) throw new InvalidOperationException("Language selection was lost.");
         if (monitors.Items.Count != keys.Count) throw new InvalidOperationException("Monitor selection mismatch.");
         for (int i = 0; i < 3; i++) OpenPreview(true);
