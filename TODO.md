@@ -18,7 +18,7 @@ Completed features are checked below. Remaining features have no committed relea
 ## 功能计划 / Feature roadmap
 
 - [x] **轮播状态一致性（2.0.1 本地代码）**：停止时保存 AutoStart=false，展示实际任务状态、上次结果和下次执行时间；任务状态每 15 秒刷新，配置与任务不一致时提示。回归使用模拟任务，不更改正在使用的桌面。
-- [x] **工程与构建整理（2.0.1 本地代码）**：旧工程独立归档并提交；版本来源统一，构建暂存目录隔离，输出冲突前置检查，统一测试入口及 Windows CI 定义。CI 需推送后才能验证远端执行。
+- [x] **工程与构建整理（2.0.1 本地代码）**：旧工程独立归档并提交；版本来源统一，构建暂存目录隔离，输出冲突前置检查，统一测试入口及 Windows CI 定义。GitHub Windows CI 已通过（2026-09-27）；正式 Release 尚未发布。
 - [x] **单一语言重构（C#）/ Single-language rewrite (C#)**：界面、壁纸处理、配置、任务与更新已统一为编译后的 C# 程序，支持旧配置迁移和安装版/便携版。基于现有 Windows/.NET 代码复用与维护成本选择 C#；已观测本地热启动界面耗时、初始工作集和包含运行时的体积，尚未完成冷启动及换图进程基准，也未制作 Rust 对比原型。完整测试范围与限制见 src/README.md。Application logic has moved to C# with migration and packaging. Warm UI startup, initial working set and package size were measured; cold-start/worker benchmarks and a Rust comparison remain unmeasured.
 - [x] **更简洁的界面设计 / Simpler UI layout**：重新设计信息层级，按“屏幕选择 → 图片来源 → 播放设置”组织主要操作；高级过滤和维护功能按需展开，减少按钮堆叠。播放顺序与切换效果保持独立，明确显示当前状态、保存与应用结果；先做布局原型，并验证中英文、高 DPI 和小屏幕下的可读性。Prototype a clearer screen/source/playback layout with progressive disclosure of advanced options, separate playback order and transition controls, and clear status/save feedback; verify both languages, high DPI and small screens.
 - [x] **图片来源同时支持目录和单张图片 / Folders and individual image paths**：每块屏幕的图片来源允许混合添加文件夹与具体图片文件，支持选择、拖放和粘贴路径。文件夹递归扫描，文件只加入该图片；统一去重，明确标识来源类型并提示失效路径。明确单张图片与过滤/排除规则的关系，兼容旧目录配置及导入导出，复用现有图片格式、EXIF 和解码支持。Allow mixed folders and individual image files through pickers, drag-and-drop and pasted paths; scan folders recursively, deduplicate images, identify source types and report missing paths. Define filtering/exclusion behavior and preserve legacy settings and import/export compatibility.
