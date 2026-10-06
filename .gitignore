@@ -10,7 +10,3 @@
 /dist/
 **/bin/
 **/obj/
-/legacy/**/config.json
-/legacy/**/config.json.backup-*.json
-/legacy/**/data/
-/legacy/**/dist/
